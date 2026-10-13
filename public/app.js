@@ -668,6 +668,17 @@ $app.addEventListener('keydown', (e) => { // Enter で、コード入力と表�
   if (e.target.id === 'renameInput') { e.preventDefault(); handlers.doRename(); }
 });
 
+// 黄色のテロップは、最初にタップしたとき全部を選択する（そのまま打ち直せるように）。2回目のタップからは、普通にカーソルを置く。
+let justFocused = false;
+$app.addEventListener('focusin', (e) => {
+  if (e.target.id !== 'hiraInput' && e.target.id !== 'themeInput') return;
+  const el = e.target;
+  justFocused = true;
+  setTimeout(() => { try { el.select(); el.setSelectionRange(0, el.value.length); } catch { /* 選択できなくても動く */ } }, 0);
+  setTimeout(() => { justFocused = false; }, 400);
+});
+$app.addEventListener('mouseup', (e) => { if (justFocused && (e.target.id === 'hiraInput' || e.target.id === 'themeInput')) e.preventDefault(); }); // 離した瞬間に選択が解けるのを防ぐ
+
 $app.addEventListener('compositionstart', () => { composing = true; });
 $app.addEventListener('compositionend', () => {
   composing = false;
