@@ -48,6 +48,15 @@ export class PgStore {
       const values = chunk.map((_, j) => `($${j + 1}, 'seed')`).join(', ');
       await this.pool.query(`INSERT INTO themes (theme, source) VALUES ${values} ON CONFLICT DO NOTHING`, chunk);
     }
+    // シードから外した題材は、保存先からも外す（シード由来のものだけ。手入力・管理ページで足した題材は残す）
+    if (seedThemes.length > 0) {
+      const keep = new Set(seedThemes);
+      const gone = (await this.pool.query("SELECT theme FROM themes WHERE source = 'seed'")).rows.map((r) => r.theme).filter((t) => !keep.has(t));
+      for (const theme of gone) {
+        await this.pool.query('DELETE FROM theme_flags WHERE theme = $1', [theme]);
+        await this.pool.query("DELETE FROM themes WHERE theme = $1 AND source = 'seed'", [theme]);
+      }
+    }
     const themes = (await this.pool.query('SELECT theme, source FROM themes')).rows;
     const flags = (await this.pool.query('SELECT theme, client_id FROM theme_flags')).rows;
     return { themes, flags };

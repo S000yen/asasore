@@ -65,3 +65,21 @@ test('管理：件数が数えられ、報告・手入力の題材だけを消�
   await store.clearFlags();
   assert.deepEqual(await store.stats(), { seed: 2, admin: 1, user: 0, flags: 0 });
 });
+
+test('シードから外した題材は、保存先からも外れる。手入力・管理ページの題材は残る', async () => {
+  const store = freshStore();
+  await store.load(['A', 'B', 'C']);
+  await store.addFlag('B', 'c1');
+  await store.addTheme('手入力', 'user');
+  await store.addTheme('管理', 'admin');
+  const second = await store.load(['A', 'C']); // B をシードから外した起動
+  assert.deepEqual(second.themes.map((t) => t.theme).sort(), ['A', 'C', '手入力', '管理'].sort());
+  assert.deepEqual(second.flags, []); // 外した題材への報告も消える
+});
+
+test('シードが空のときは、何も外さない', async () => {
+  const store = freshStore();
+  await store.load(['A', 'B']);
+  const second = await store.load([]);
+  assert.equal(second.themes.length, 2);
+});
