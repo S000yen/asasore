@@ -247,7 +247,7 @@ function entryHtml() {
       </div>
       ${resume}`;
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
-      <label class="field"><span>部屋コード（4文字）</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
+      <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
       <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
     </div></div>` : '';
   return `<div class="entry">
@@ -257,7 +257,6 @@ function entryHtml() {
     </div>
     ${body}
     ${ui.connected ? '' : '<p class="hint center-text">サーバーにつなぎ直しています。</p>'}
-    <p class="foot-hint">名前は「ユーザー1」のように自動でつきます。部屋に入ってから、メニューで変えられます。</p>
     ${dialog}${toastHtml()}
   </div>`;
 }
@@ -311,7 +310,7 @@ function lobbyHtml() {
       ? `<button class="rule" data-do="sheet" data-kind="settings"><span>ルール</span><span class="rule-body">${rule}</span><span class="chev">›</span></button>`
       : `<p class="rule static"><span>ルール</span><span class="rule-body">${rule}</span></p>`}
     <button class="btn small center" data-do="share">招待リンクを共有する</button>
-    ${v.me.isHost ? '' : '<p class="hint">主催者が始めるのを待っています。</p>'}`;
+`;
 }
 
 function topicHtml() {
@@ -342,12 +341,10 @@ function answerHtml() {
   const v = view;
   return `
     ${telop(v.topic)}
-    <section class="card stack">
+    <div class="answerbox">
       <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
-      <div class="submit-row">
-        ${v.myAnswer !== null ? '<span class="hint">回答しました。書き換えるには、取り下げてください。</span><button class="btn small" data-do="withdraw">取り下げる</button>' : '<span></span><button class="btn primary" data-do="submitAnswer">回答する</button>'}
-      </div>
-    </section>
+      <div class="box-actions">${v.myAnswer !== null ? '<button class="btn small" data-do="withdraw">取り下げる</button>' : '<button class="btn primary small" data-do="submitAnswer">回答する</button>'}</div>
+    </div>
     ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
 
@@ -385,14 +382,14 @@ function revealHtml() {
     ${myCard()}
     <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
     ${poolHtml()}
-    ${v.unrevealedCount > 0 ? `<p class="hint">${v.settings.identityMode === 'anonymous' ? '主催者が、黒いマスをタップして開示します。' : '自分の黒いマス（黄色の枠）をタップすると、みんなに見せます。'}</p>` : ''}`;
+`;
 }
 
 function voteHtml() {
   const v = view;
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>いちばん「正解」だと思う回答をタップ</h2></div>
+    <div class="listhead"><h2>正解だと思う回答に投票</h2></div>
     ${poolHtml()}
     ${progress('投票状況', v.players, (p) => p.voted)}`;
 }
@@ -409,8 +406,8 @@ function resultHtml() {
   }).join('');
   return `
     ${telop(v.topic)}
-    ${r.tie ? '<p class="hint">同票でした。同票の回答がどれも正解です。</p>' : ''}
-    ${r.winners.length === 0 ? '<p class="hint">投票がなかったため、正解は決まりませんでした。</p>' : ''}
+    ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
+    ${r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
     <section class="stack">${rows}</section>`;
 }
 
@@ -429,17 +426,16 @@ function actionBar() {
       if (v.me.isPresenter) btn = '<button class="btn primary block" data-do="confirmTopic">この題で決定</button>';
       break;
     case 'answer':
-      if (host) { btn = '<button class="btn primary block" data-do="advance">開示へ進む</button>'; meta = `${v.players.filter((p) => p.answered).length}/${v.players.length}人が回答済み`; }
+      if (host) { btn = '<button class="btn primary block" data-do="advance">開示へ進む</button>' }
       break;
     case 'reveal':
       if (host) {
         const left = v.unrevealedCount;
         btn = `<button class="btn primary block" data-do="advance" ${left > 0 ? 'disabled' : ''}>投票へ進む</button>`;
-        meta = left > 0 ? `あと${left}件が開示されると進めます` : '';
       }
       break;
     case 'vote':
-      if (host) { btn = '<button class="btn primary block" data-do="advance">結果を見る</button>'; meta = `${v.players.filter((p) => p.voted).length}/${v.players.length}人が投票済み`; }
+      if (host) { btn = '<button class="btn primary block" data-do="advance">結果を見る</button>' }
       break;
     case 'result':
       if (host) btn = '<button class="btn primary block" data-do="advance">次のラウンドへ</button>';
@@ -490,9 +486,8 @@ function sheetHtml() {
       </article>`).join('')}</div>`;
   } else if (k === 'rename') {
     inner = `<h3>表示名を変える</h3><div class="stack">
-      <label class="field"><span>この部屋のみんなに見える名前（20文字まで）</span><input id="renameInput" type="text" data-draft="rename" maxlength="20" autocomplete="off" value="${esc(drafts.rename)}"></label>
-      <button class="btn primary block" data-do="doRename">変更する</button>
-      <p class="hint">次に別の部屋へ入るときも、この名前が使われます。</p></div>`;
+      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="20" autocomplete="off" value="${esc(drafts.rename)}"></label>
+      <button class="btn primary block" data-do="doRename">変更する</button></div>`;
   } else if (k === 'settings') {
     const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
     const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${s[key] === val ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
@@ -501,7 +496,7 @@ function sheetHtml() {
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="-1" ${i === 0 || locked ? 'disabled' : ''} aria-label="上へ">↑</button>
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="1" ${i === ids.length - 1 || locked ? 'disabled' : ''} aria-label="下へ">↓</button></span></li>`).join('')}</ul>` : '';
     inner = `<h3>部屋設定</h3><div class="stack">
-      ${locked ? '<p class="hint">ラウンドの途中は変更できません。結果発表のあとに変えられます。</p>' : ''}
+      ${locked ? '<p class="hint">ラウンド中は変更できません</p>' : ''}
       <h2>出題者</h2>${seg('presenterMode', [['host', '毎ラウンド主催者'], ['rotation', '順番に回す']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       ${order}</div>`;
@@ -599,9 +594,9 @@ const handlers = {
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
   reportTopic() {
     const t = view.topic?.theme;
-    if (!t || drafts.theme.trim() !== t) return toast('いま出ている題材だけ、報告できます（書き換えた題材は対象外です）');
+    if (!t || drafts.theme.trim() !== t) return toast('書き換えた題材は報告できません');
     ui.modal = {
-      body: `「${t}」を、おかしい題材として報告します。この部屋では、もう出なくなります。新しい題材を引き直します。`,
+      body: `「${t}」を報告して、引き直します。この部屋では二度と出ません。`,
       ok: '報告する',
       danger: true,
       onOk: () => act('reportTopic', { theme: t }),
@@ -615,7 +610,7 @@ const handlers = {
     if (!text) return toast('答えを入力してください');
     act('submitAnswer', { text });
   },
-  withdraw() { act('withdrawAnswer'); drafts.answer = ''; },
+  withdraw() { act('withdrawAnswer'); }, // 入力した文章は残す（そのまま直して、もう一度回答できる）
   revealOwn() { act('revealOwn'); },
   revealSelected(d) { act('revealSelected', { answerId: d.id }); },
   revealAll() { act('revealAll'); },
