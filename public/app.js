@@ -393,7 +393,7 @@ function poolHtml() {
     }
     const wide = [...c.text].length > 10 ? ' wide' : '';
     const picked = v.myVote === c.answerId;
-    const body = `<span class="tile">${esc([...c.text][0] || '')}</span><span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
+    const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
     const cls = `cell open${wide}${me}${picked ? ' picked' : ''}`;
     return c.canVote
       ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`

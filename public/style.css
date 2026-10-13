@@ -364,22 +364,21 @@ textarea[readonly] { background: var(--dawn); color: var(--ink); border-color: t
 }
 .cell.wide { grid-column: 1 / -1; }
 .cell.dark { background: var(--ink); transform: rotate(2deg); }
-.cell.open { background: var(--telop); color: var(--ink); transform: rotate(-2deg); box-shadow: 3px 3px 0 var(--ink); }
+.cell.open { background: var(--ink); color: var(--telop); transform: rotate(-2deg); }
 .cell:nth-child(even).open { transform: rotate(-1deg); }
 .cell:nth-child(even).dark { transform: rotate(1deg); }
-.cell .tile { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 6px; background: var(--ink); color: var(--telop); font-family: 'Dela Gothic One', sans-serif; font-size: 18px; }
 .cell .txt { display: flex; flex-direction: column; min-width: 0; }
 .cell.open .text { font-family: 'Dela Gothic One', sans-serif; font-weight: 400; font-size: 15px; line-height: 1.3; }
 .cell.open .text.lg { font-size: 19px; }
 .cell.open .text.md { font-size: 16px; }
 .cell.open .text.sm { font-size: 13px; }
-.cell.open .by { font-size: 11px; opacity: .65; }
+.cell.open .by { font-size: 11px; opacity: .7; }
 button.cell { cursor: pointer; }
 button.cell.open:active { filter: brightness(.95); }
 .cell.dark.tap:active { background: #2a3a5e; }
-.cell.open.picked { border-color: var(--stamp); box-shadow: 3px 3px 0 var(--stamp); }
+.cell.open.picked { border-color: var(--stamp); }
 @keyframes glow { 0%, 100% { box-shadow: 0 0 6px 1px rgba(255,216,61,.5); } 50% { box-shadow: 0 0 16px 5px rgba(255,216,61,.95); } }
 .cell.mine { border-color: #fff; animation: glow 1.6s ease-in-out infinite; }
 .cell.dark.mine { border-color: var(--telop); }
-.cell.open.mine { border-color: var(--stamp); }
+.cell.open.mine { border-color: var(--telop); }
 .cell.dark.tap:not(.mine) { animation: glow 2.2s ease-in-out infinite; border-color: rgba(255,216,61,.6); }
