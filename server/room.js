@@ -560,11 +560,18 @@ export class Room {
       const hidden = visible.filter((a) => !a.revealed);
       view.unrevealedCount = hidden.length;
       if (this.phase === 'reveal') {
-        // 未開示の回答は、本人と（匿名モードの）主催者にだけ見せる。主催者にも作者は伏せる。
-        view.unrevealed = hidden
-          .filter((a) => a.ownerId === pid || (anonymous && isHost))
-          .sort((a, b) => (a.id < b.id ? -1 : 1))
-          .map((a) => ({ ...toView(a), author: anonymous ? null : nameOf(a.ownerId) }));
+        // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
+        // 記名：本人が自分の枠をタップして開示する。他の人の枠は、名前だけ付けて黒塗り。
+        // 匿名：主催者が、全部黒塗りのまま1枠ずつ開示する（主催者にも中身と持ち主は伏せる）。本人には、自分の分が先頭に見える。
+        const byId = [...hidden].sort((a, b) => (a.id < b.id ? -1 : 1));
+        if (anonymous && isHost) {
+          view.unrevealed = byId.map((a) => ({ answerId: a.id, mine: false, text: null, author: null, canReveal: true }));
+        } else {
+          const mine = byId.filter((a) => a.ownerId === pid).map((a) => ({ answerId: a.id, mine: true, text: a.text, author: null, canReveal: !anonymous }));
+          const others = byId.filter((a) => a.ownerId !== pid).map(() => ({ answerId: null, mine: false, text: null, author: null, canReveal: false }));
+          if (!anonymous) byId.filter((a) => a.ownerId !== pid).forEach((a, i) => { others[i].author = nameOf(a.ownerId); });
+          view.unrevealed = [...mine, ...others];
+        }
       }
     }
     if (this.phase === 'vote') view.myVote = this.votes.get(pid) ?? null;

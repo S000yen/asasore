@@ -35,14 +35,15 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 /* ヘッダー */
 .bar {
   position: sticky; top: 0; z-index: 5;
-  display: flex; align-items: center; justify-content: space-between;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
   padding: calc(env(safe-area-inset-top) + 10px) 0 10px;
   background: var(--dawn);
 }
 .room { display: flex; align-items: baseline; gap: 8px; }
 .room-label { font-size: 13px; color: var(--ink-soft); }
 .code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
-.round { font-size: 14px; color: var(--ink-soft); margin-left: 4px; }
+.round { font-family: var(--display); font-size: 17px; color: var(--ink); text-align: center; white-space: nowrap; }
+.bar-right { justify-self: end; }
 .bar-right { display: flex; align-items: center; gap: 4px; }
 .textbtn { border: 0; background: none; min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--ink-soft); }
 .icon {
@@ -252,3 +253,48 @@ button.answer:disabled { opacity: .55; }
 .row.hira { justify-content: flex-start; }
 .row.hira > .field { flex: none; }
 .main > .stack:has(.answer.won) { margin-top: 8px; }
+
+/* 狭い画面では、第N問を2行目の中央へ */
+@media (max-width: 359px) {
+  .bar { grid-template-columns: 1fr auto; }
+  .round { grid-column: 1 / -1; grid-row: 2; padding-bottom: 2px; }
+}
+
+/* 出題者を任せる（カードの右上）と、枠の中の引き直し */
+.btn.dark { background: var(--ink); color: #fff; }
+.btn.small svg { flex: none; }
+.btn.small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.topic-card { position: relative; }
+.fhead { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
+.fhead .btn { min-height: 40px; padding: 0 12px; }
+.boxed { position: relative; display: block; }
+.boxed input { padding-right: 56px; }
+.boxed .hira-input { width: 100% !important; font-size: 30px !important; padding: 6px 56px 6px 56px; }
+.inbtn {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 42px; height: 42px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: var(--dawn); color: var(--ink);
+}
+.inbtn:active { background: var(--line); }
+.links.right { justify-content: flex-end; }
+
+/* 開示：黒塗りの枠と、自分の枠 */
+.listhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
+.listhead h2 { margin: 0; }
+.slot { display: flex; width: 100%; text-align: left; border-radius: var(--radius); }
+.slot.dark {
+  align-items: center; min-height: 56px; padding: 0 14px; border: 2px solid var(--ink); background: var(--ink);
+}
+.slot-name { color: #8fa0bb; font-size: 13px; }
+.slot-hint { color: var(--telop); font-weight: 700; font-size: 14px; }
+.slot.dark.tap:active { background: #2a3a5e; }
+.slot.own {
+  flex-direction: column; gap: 2px; padding: 14px; border: 3px dashed var(--ink); background: #fffbe0; overflow-wrap: anywhere;
+}
+.slot.own .text { font-weight: 700; font-size: 18px; }
+.slot.own .text.lg { font-size: 24px; }
+.slot.own .text.sm { font-size: 15px; }
+.slot.own .by { font-size: 13px; color: var(--ink-soft); }
+button.slot.own:active { background: #fff3a8; }
+.answer.mine { background: #fffbe0; border-color: var(--ink); }
+.answer .state.me { float: right; background: var(--ink); color: var(--telop); border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 700; }

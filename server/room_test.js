@@ -75,18 +75,22 @@ test('匿名モードでは結果発表まで作者が出ない（主催者に�
   room.submitAnswer(C, 'c1');
   room.advance(A);
 
-  // 開示前、主催者は内容を見られるが作者は見えない
+  // 開示前、主催者には全部黒塗り（中身も作者も見えない）。開示は主催者だけができる
   const hostView = room.viewFor(A);
   assert.equal(hostView.unrevealed.length, 3);
-  assert.ok(hostView.unrevealed.every((a) => a.author === null));
-  // 他の参加者には自分の分しか見えない
-  assert.equal(room.viewFor(B).unrevealed.length, 1);
-  assert.equal(room.viewFor(B).unrevealed[0].mine, true);
+  assert.ok(hostView.unrevealed.every((a) => a.author === null && a.text === null && a.canReveal));
+  // 他の参加者には、自分の分だけ中身が先頭に見え、あとは黒塗りの枠（枠の数は見える）
+  const bView = room.viewFor(B).unrevealed;
+  assert.equal(bView.length, 3);
+  assert.deepEqual([bView[0].mine, bView[0].text, bView[0].canReveal], [true, 'b1', false]);
+  assert.ok(bView.slice(1).every((s) => s.text === null && s.answerId === null && s.author === null));
+  assert.ok(!JSON.stringify(room.viewFor(C).unrevealed).includes('b1'));
 
-  // 選択開示
-  room.revealSelected(A, hostView.unrevealed.find((a) => a.text === 'b1').answerId);
+  // 選択開示（主催者は中身を見ずに枠を選ぶ）
+  room.revealSelected(A, hostView.unrevealed[0].answerId);
   assert.equal(room.viewFor(C).answers.length, 1);
   assert.equal(room.viewFor(C).answers[0].author, null);
+  assert.equal(room.viewFor(C).unrevealed.length, 2);
   assert.throws(() => room.revealOwn(B), { code: 'wrong_mode' });
 
   room.revealAll(A);
@@ -309,4 +313,19 @@ test('記録：結果が出たラウンドだけ、新しい順に見られる�
   h = room.viewFor(B).history;
   assert.deepEqual(h.map((x) => x.round), [2, 1]);
   assert.equal(h[0].entries[0].text, '二つ目のB');
+});
+
+test('記名モードの開示：本人だけが自分の枠を開け、他の人の枠は名前つきの黒塗り', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A);
+  const v = room.viewFor(B).unrevealed;
+  assert.deepEqual([v[0].mine, v[0].text, v[0].canReveal], [true, 'b1', true]);
+  assert.deepEqual(v.slice(1).map((s) => s.author).sort(), ['A', 'C']);
+  assert.ok(v.slice(1).every((s) => s.text === null && s.canReveal === false));
+  room.revealOwn(B);
+  assert.equal(room.viewFor(C).answers.length, 1);
+  assert.equal(room.viewFor(B).unrevealed.length, 2);
 });

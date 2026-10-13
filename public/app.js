@@ -216,6 +216,7 @@ const chips = (list, mark) => `<div class="chips">${list.map((p) =>
 
 const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
 // 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
+const ICON_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/></svg>';
 const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? 'lg' : n <= 22 ? 'md' : 'sm'; };
 
 // 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
@@ -263,7 +264,8 @@ function roomHtml() {
   const v = view;
   return `
     <header class="bar">
-      <div class="room"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b>${v.round ? `<span class="round">第${v.round}問</span>` : ''}</div>
+      <div class="room"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b></div>
+      <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
         ${v.history.length ? '<button class="textbtn" data-do="sheet" data-kind="history">記録</button>' : ''}
         <button class="icon" data-do="openMenu" aria-label="メニュー">☰</button>
@@ -309,21 +311,17 @@ function topicHtml() {
   }
   return `
     ${telop({ hiragana: drafts.hiragana, theme: drafts.theme })}
-    <section class="card stack">
-      <div class="row hira">
-        <label class="field"><span>ひらがな</span><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" value="${esc(drafts.hiragana)}"></label>
-        <button class="roundbtn" data-do="draw" data-part="hiragana" aria-label="ひらがなを引き直す">${ICON_REDRAW}</button>
+    <section class="card stack topic-card">
+      <div class="field">
+        <div class="fhead"><span>ひらがな</span><button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button></div>
+        <span class="boxed"><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" value="${esc(drafts.hiragana)}"><button class="inbtn" data-do="draw" data-part="hiragana" aria-label="ひらがなを引き直す">${ICON_REDRAW}</button></span>
       </div>
-      <div class="row">
-        <label class="field"><span>題材</span><input id="themeInput" type="text" data-draft="theme" maxlength="40" value="${esc(drafts.theme)}"></label>
-        <button class="roundbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button>
-      </div>
+      <label class="field"><span>題材</span>
+        <span class="boxed"><input id="themeInput" type="text" data-draft="theme" maxlength="40" value="${esc(drafts.theme)}"><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
+      </label>
+      <button class="btn small block" data-do="draw" data-part="both">${ICON_REDRAW.replace('width="20" height="20"', 'width="18" height="18"')}<span>ひらがなと題材を、両方引き直す</span></button>
     </section>
-    <div class="links">
-      <button class="link" data-do="draw" data-part="both">${ICON_REDRAW.replace('width="20" height="20"', 'width="15" height="15"')} 両方引き直す</button>
-      <button class="link" data-do="reportTopic">⚑ この題材を報告</button>
-      <button class="link" data-do="sheet" data-kind="presenter">出題者を任せる</button>
-    </div>`;
+    <div class="links right"><button class="link" data-do="reportTopic">⚑ この題材を報告</button></div>`;
 }
 
 function answerHtml() {
@@ -339,21 +337,24 @@ function answerHtml() {
 }
 
 function revealHtml() {
-  const v = view, anon = v.settings.identityMode === 'anonymous', host = v.me.isHost;
-  const pending = v.unrevealed.map((a) => {
-    const canReveal = anon ? host : a.mine;
-    const note = a.mine ? (anon && !host ? 'あなたの回答（主催者が開示します）' : 'あなたの回答') : '';
-    return `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${note ? `<span class="by">${note}</span>` : ''}${
-      canReveal ? `<button class="btn small" style="margin-top:10px" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(a.answerId)}">開示する</button>` : ''}</div>`;
-  }).join('');
-  const shown = v.answers.map((a) => `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</div>`).join('');
-  const hiddenOthers = v.unrevealedCount - v.unrevealed.length;
+  const v = view, host = v.me.isHost;
+  const total = v.answers.length + v.unrevealedCount;
+  // 未開示の枠：自分の分は中身が見える（先頭）。ほかは黒塗り（記名なら名前だけ）。匿名では、主催者が黒塗りのまま1枠ずつ開く。
+  const slot = (x) => {
+    if (x.mine) {
+      const body = `<span class="text ${sizeOf(x.text)}">${esc(x.text)}</span><span class="by">${x.canReveal ? 'タップすると、みんなに見せます' : 'あなたの回答（主催者が開示します）'}</span>`;
+      return x.canReveal ? `<button class="slot own" data-do="revealOwn">${body}</button>` : `<div class="slot own">${body}</div>`;
+    }
+    if (x.canReveal) return `<button class="slot dark tap" data-do="revealSelected" data-id="${esc(x.answerId)}"><span class="slot-hint">タップして開示</span></button>`;
+    return `<div class="slot dark">${x.author ? `<span class="slot-name">${esc(x.author)}</span>` : ''}</div>`;
+  };
+  const own = v.unrevealed.filter((x) => x.mine).map(slot).join('');
+  const dark = v.unrevealed.filter((x) => !x.mine).map(slot).join('');
+  const shown = v.answers.map((a) => `<div class="answer ${a.mine ? 'mine' : ''}">${a.mine ? '<span class="state me">あなた</span>' : ''}<span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</div>`).join('');
   return `
     ${telop(v.topic)}
-    ${v.unrevealedCount > 0 && host ? '<button class="btn small" data-do="revealAll">残りを全員分開示する</button>' : ''}
-    ${pending ? `<section class="stack"><h2>まだ開示していない回答</h2>${pending}</section>` : ''}
-    ${hiddenOthers > 0 && !host ? `<p class="hint">ほかに開示されていない回答が${hiddenOthers}件あります。</p>` : ''}
-    <section class="stack"><h2>開示された回答 ${v.answers.length}件</h2>${shown || '<p class="hint">まだありません。</p>'}</section>`;
+    <div class="listhead"><h2>開示済み ${v.answers.length}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
+    <section class="stack">${own}${shown}${dark}</section>`;
 }
 
 function voteHtml() {
@@ -404,7 +405,11 @@ function actionBar() {
       if (host) { btn = '<button class="btn primary block" data-do="advance">開示へ進む</button>'; meta = `${v.players.filter((p) => p.answered).length}/${v.players.length}人が回答済み`; }
       break;
     case 'reveal':
-      if (host) btn = '<button class="btn primary block" data-do="advance">投票へ進む</button>';
+      if (host) {
+        const left = v.unrevealedCount;
+        btn = `<button class="btn primary block" data-do="advance" ${left > 0 ? 'disabled' : ''}>投票へ進む</button>`;
+        meta = left > 0 ? `あと${left}件が開示されると進めます` : '';
+      }
       break;
     case 'vote':
       if (host) { btn = '<button class="btn primary block" data-do="advance">結果を見る</button>'; meta = `${v.players.filter((p) => p.voted).length}/${v.players.length}人が投票済み`; }
