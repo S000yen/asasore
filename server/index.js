@@ -250,6 +250,10 @@ wss.on('connection', (ws) => {
         const room = new Room(code);
         const entry = { room, sockets: new Map() };
         const p = room.join(null, msg.name);
+        if (msg.settings && typeof msg.settings === 'object') { // 作成前に選んだ設定。不正な値は無視して、既定のまま作る
+          const { presenterMode, identityMode } = msg.settings;
+          try { room.setSettings(p.id, { presenterMode, identityMode }); } catch { /* 既定のまま */ }
+        }
         rooms.set(code, entry);
         attach(code, entry, p.id);
       } else if (msg.t === 'join') {

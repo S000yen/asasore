@@ -46,7 +46,8 @@ let pendingLink = (() => {
   const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
-const ui = { sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
+const newRoom = { presenterMode: 'host', identityMode: 'named' }; // 部屋をつくるときの設定（作成の前に選ぶ）
+const ui = { createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
@@ -245,10 +246,19 @@ function entryHtml() {
   const body = ui.joining
     ? '<p class="hint center-text">部屋に入っています…</p>'
     : `<div class="entry-btns">
-        <button class="bigbtn primary" data-do="create">${ICON_HAMMER}<span>部屋をつくる</span></button>
+        <button class="bigbtn primary" data-do="openCreate">${ICON_HAMMER}<span>部屋をつくる</span></button>
         <button class="bigbtn" data-do="openJoin">${ICON_DOOR}<span>部屋に入る</span></button>
       </div>
       ${resume}`;
+  const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${newRoom[key] === val ? 'on' : ''}" data-do="newSet" data-key="${key}" data-val="${val}">${label}</button>`).join('')}</div>`;
+  const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet">
+      <h3>部屋をつくる</h3>
+      <div class="stack">
+        <h2>出題者</h2>${seg('presenterMode', [['host', '毎回主催者'], ['rotation', '順番に回す']])}
+        <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
+      </div>
+      <div class="btns" style="margin-top:18px"><button class="btn" data-do="closeCreate">キャンセル</button><button class="btn primary" data-do="create">作成</button></div>
+    </div></div>` : '';
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
       <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
@@ -259,7 +269,7 @@ function entryHtml() {
     </div>
     ${body}
     ${ui.connected ? '' : '<p class="hint center-text">サーバーにつなぎ直しています。</p>'}
-    ${dialog}${toastHtml()}
+    ${dialog}${createDialog}${toastHtml()}
   </div>`;
 }
 
@@ -563,9 +573,13 @@ function confirmPick(kind, id) {
 }
 
 const handlers = {
+  openCreate() { ui.createOpen = true; render(); },
+  closeCreate() { ui.createOpen = false; render(); },
+  newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
     autoJoin = true;
-    sendRaw({ t: 'create', name: prefName, clientId });
+    ui.createOpen = false;
+    sendRaw({ t: 'create', name: prefName, clientId, settings: { ...newRoom } });
   },
   openJoin() {
     ui.joinOpen = true;
