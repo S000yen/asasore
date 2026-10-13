@@ -1,0 +1,189 @@
+:root {
+  --dawn: #dcebf2;      /* 朝の空 */
+  --paper: #ffffff;
+  --ink: #16213a;
+  --ink-soft: #55657f;
+  --line: #bccddb;
+  --telop: #ffd83d;     /* テロップの黄 */
+  --stamp: #d93a2b;     /* 判子の赤 */
+  --display: "Dela Gothic One", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  --body: "BIZ UDPGothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--dawn);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+#app {
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ヘッダー */
+.bar {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(env(safe-area-inset-top) + 10px) 0 10px;
+  background: var(--dawn);
+}
+.room { display: flex; align-items: baseline; gap: 8px; }
+.room-label { font-size: 13px; color: var(--ink-soft); }
+.code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
+.round { font-size: 14px; color: var(--ink-soft); margin-left: 4px; }
+.icon {
+  width: 48px; height: 48px; border: 0; border-radius: 50%;
+  background: var(--paper); font-size: 22px; line-height: 1;
+}
+.conn {
+  margin: 0 0 8px; padding: 8px 12px; border-radius: var(--radius);
+  background: var(--ink); color: #fff; font-size: 14px;
+}
+
+/* 本文 */
+.main { padding: 10px 0 120px; display: grid; gap: 14px; }
+h1, h2 { margin: 0; font-weight: 700; }
+h2 { font-size: 15px; color: var(--ink-soft); margin-bottom: 8px; }
+.card { background: var(--paper); border-radius: var(--radius); padding: 14px; }
+.hint { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.stack { display: grid; gap: 10px; }
+
+/* 入室 */
+.entry { padding-top: calc(env(safe-area-inset-top) + 40px); display: grid; gap: 18px; }
+.title { font-family: var(--display); font-weight: 400; font-size: 40px; line-height: 1.2; margin: 0; }
+.title small { display: block; font-family: var(--body); font-size: 15px; color: var(--ink-soft); margin-top: 8px; line-height: 1.5; }
+
+/* 入力 */
+.field { display: grid; gap: 6px; }
+.field > span { font-size: 14px; color: var(--ink-soft); }
+input[type=text], textarea {
+  width: 100%; padding: 12px 14px; border: 2px solid var(--line); border-radius: var(--radius);
+  background: #fff; font-size: 16px; /* 16px未満だとiOSで入力時に拡大される */
+}
+input[type=text]:focus, textarea:focus { border-color: var(--ink); outline: none; }
+textarea { resize: none; }
+.row { display: flex; gap: 10px; align-items: end; }
+.row > .field { flex: 1; }
+.hira-input { width: 72px !important; text-align: center; font-family: var(--display); font-size: 28px !important; padding: 6px; }
+
+/* ボタン */
+.btn {
+  min-height: 52px; padding: 0 18px; border-radius: var(--radius);
+  border: 2px solid var(--ink); background: #fff; font-weight: 700;
+}
+.btn.primary { background: var(--ink); color: #fff; }
+.btn.danger { color: var(--stamp); border-color: var(--stamp); }
+.btn.small { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.btn[disabled] { opacity: .4; cursor: default; }
+.btn.block { width: 100%; }
+.link { border: 0; background: none; padding: 8px 4px; color: var(--ink-soft); text-decoration: underline; }
+
+/* 下に固定する主操作 */
+.action {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px);
+  background: linear-gradient(to top, var(--dawn) 70%, transparent);
+}
+.action > div { max-width: 480px; margin: 0 auto; display: grid; gap: 6px; }
+.action .meta { margin: 0; text-align: center; font-size: 13px; color: var(--ink-soft); }
+
+/* 参加者 */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; background: var(--dawn); font-size: 14px;
+}
+.chip.away { opacity: .5; }
+.chip .mark { color: var(--ink); font-weight: 700; }
+.chip .tag { font-size: 12px; color: var(--ink-soft); }
+
+/* お題のテロップ：この画面でいちばん目立たせる部分 */
+.telop {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px; background: var(--telop);
+  border: 3px solid var(--ink); border-radius: 6px;
+  transform: rotate(-1deg);
+}
+.tile {
+  flex: none; width: 72px; height: 72px; display: grid; place-items: center;
+  background: var(--ink); color: var(--telop);
+  font-family: var(--display); font-size: 44px; line-height: 1; border-radius: 4px;
+}
+.telop-text { display: grid; gap: 2px; min-width: 0; }
+.telop-text .tiny { font-size: 13px; font-weight: 700; }
+.telop-text strong { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
+.telop.waiting { background: var(--paper); border-style: dashed; transform: none; color: var(--ink-soft); }
+
+/* 回答カード */
+.answer {
+  position: relative; width: 100%; text-align: left;
+  padding: 14px; border-radius: var(--radius); border: 2px solid transparent; background: var(--paper);
+  overflow-wrap: anywhere;
+}
+.answer .text { font-size: 18px; font-weight: 700; }
+.answer .by { display: block; margin-top: 4px; font-size: 13px; color: var(--ink-soft); }
+.answer.mine { border-color: var(--line); }
+.answer.picked { border-color: var(--ink); background: #fffbe0; }
+.answer.won { border-color: var(--stamp); }
+button.answer:disabled { opacity: .55; }
+.answer .state { float: right; font-size: 13px; color: var(--ink-soft); margin-left: 10px; }
+.votes { font-family: var(--display); font-size: 20px; }
+.answer .foot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; }
+.answer .foot .by { margin-top: 0; }
+
+/* 判子：もう一つの見せ場 */
+.stamp {
+  position: absolute; top: -10px; right: 8px;
+  padding: 2px 10px; border: 3px solid var(--stamp); border-radius: 6px;
+  color: var(--stamp); background: var(--paper);
+  font-family: var(--display); font-size: 22px; line-height: 1.3;
+  transform: rotate(-8deg);
+}
+
+/* 下から出るシート・確認ダイアログ */
+.scrim {
+  position: fixed; inset: 0; z-index: 20; display: flex; align-items: flex-end;
+  background: rgba(22, 33, 58, .45);
+}
+.sheet {
+  width: 100%; max-width: 480px; margin: 0 auto; max-height: 85dvh; overflow: auto;
+  padding: 18px 16px calc(env(safe-area-inset-bottom) + 18px);
+  background: var(--paper); border-radius: 18px 18px 0 0;
+}
+.sheet h3 { margin: 0 0 12px; font-size: 18px; }
+.menu { display: grid; gap: 8px; }
+.menu .btn { text-align: left; }
+.dialog { align-items: center; padding: 16px; }
+.dialog .sheet { border-radius: var(--radius); }
+.dialog p { margin: 0 0 16px; }
+.dialog .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+.seg .btn.on { background: var(--ink); color: #fff; }
+.order { display: grid; gap: 8px; }
+.order li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.order { list-style: none; padding: 0; margin: 0; }
+
+.toast {
+  position: fixed; left: 16px; right: 16px; top: calc(env(safe-area-inset-top) + 64px); z-index: 30;
+  max-width: 448px; margin: 0 auto; padding: 12px 14px; border-radius: var(--radius);
+  background: var(--ink); color: #fff; font-size: 15px;
+}
+
+.end { padding-top: 80px; display: grid; gap: 16px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn { transition: transform .08s; }
+  .btn:active { transform: scale(.98); }
+}

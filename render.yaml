@@ -1,0 +1,11 @@
+# Render の Blueprint。リポジトリを選ぶだけで、この設定で作られる。
+services:
+  - type: web
+    name: asaso
+    runtime: node
+    plan: free
+    region: singapore # 日本から近いリージョン
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true

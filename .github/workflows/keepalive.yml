@@ -1,0 +1,27 @@
+# 無料のサーバーが休止しないよう、10分おきに /health へアクセスする。
+# アクセス先は、GitHub の Settings > Secrets and variables > Actions > Variables に
+# APP_URL（例: https://asaso.onrender.com）として入れる。未設定なら何もしない。
+name: keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # 手動でも実行できる
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /health
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL が未設定のため、何もしません"
+            exit 0
+          fi
+          # 休止中だと起動に1分ほどかかるので、待ち時間は長めにとる
+          curl -fsS --max-time 90 --retry 2 --retry-delay 5 "${APP_URL%/}/health"
