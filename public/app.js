@@ -142,6 +142,9 @@ function onMessage(m) {
     case 'notice':
       toast(m.text);
       return;
+    case 'react':
+      floatMark(m.kind);
+      return;
     case 'error':
       ui.joining = false;
       ui.pendingRename = null;
@@ -284,6 +287,29 @@ function confetti() {
     if (alive) requestAnimationFrame(step); else cv.remove();
   };
   requestAnimationFrame(step);
+}
+
+// 反応マーク：画面の下から、ふわっと浮かび上がる。#app の外に出す（描画のたびに消えないように）。
+const MARKS = { like: '👍', bad: '👎', cheer: '📣', laugh: '😂' };
+function floatMark(kind) {
+  const mark = MARKS[kind];
+  if (!mark) return;
+  let box = document.querySelector('.floaters');
+  if (!box) { box = document.createElement('div'); box.className = 'floaters'; box.setAttribute('aria-hidden', 'true'); document.body.append(box); }
+  if (box.childElementCount > 60) box.firstElementChild.remove();
+  const el = document.createElement('span');
+  el.className = 'float';
+  el.textContent = mark;
+  el.style.left = `${8 + Math.random() * 84}%`;
+  el.style.setProperty('--sway', `${Math.round((Math.random() - 0.5) * 80)}px`);
+  el.style.setProperty('--rise', `${55 + Math.round(Math.random() * 25)}vh`);
+  el.style.fontSize = `${28 + Math.round(Math.random() * 14)}px`;
+  el.addEventListener('animationend', () => el.remove());
+  box.append(el);
+}
+function reactBarHtml() {
+  const lock = isEditing();
+  return `<div class="reactbar">${Object.entries(MARKS).map(([k, m]) => `<button class="react" ${lock ? 'disabled' : `data-do="react" data-kind="${k}"`} aria-label="${{ like: 'いいね', bad: 'バッド', cheer: '応援', laugh: '笑い' }[k]}">${m}</button>`).join('')}</div>`;
 }
 
 function startBand() {
@@ -660,6 +686,7 @@ function revealHtml() {
     ${telop(v.topic)}
     <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2><span class="lh-actions">${host && v.unrevealedCount > 0 && !isEditing() ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}${groupToggleHtml()}</span></div>
     ${poolHtml()}${groupBarHtml()}
+    ${reactBarHtml()}
 `;
 }
 
@@ -937,6 +964,7 @@ const handlers = {
   revealOwn() { act('revealOwn'); },
   revealSelected(d) { act('revealSelected', { answerId: d.id }); },
   revealAll() { act('revealAll'); },
+  react(d) { act('react', { kind: d.kind }); },
   editOn() { ui.sheet = null; ui.sel.clear(); ui.editing = true; render(); },
   editDone() { ui.editing = false; ui.sel.clear(); render(); },
   toggleSel(d) { if (ui.sel.has(d.id)) ui.sel.delete(d.id); else ui.sel.add(d.id); render(); },

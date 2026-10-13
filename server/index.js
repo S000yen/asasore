@@ -203,6 +203,10 @@ function handleAct(entry, pid, msg, clientId) {
     case 'choose':
       room.choose(pid, msg.answerId);
       break;
+    case 'react': { // 反応マークは、状態を変えず、全員に流すだけ
+      const r = room.react(pid, msg.kind);
+      return { react: r };
+    }
     case 'group':
       room.group(pid, msg.answerIds);
       break;
@@ -322,6 +326,10 @@ wss.on('connection', (ws) => {
           }
           entry.sockets.delete(ctx.pid);
           broadcast(entry);
+          return;
+        }
+        if ('react' in out) {
+          if (out.react) for (const set of entry.sockets.values()) for (const w of set) send(w, { t: 'react', kind: out.react.kind });
           return;
         }
         const text = describe(entry.room, out.ev);

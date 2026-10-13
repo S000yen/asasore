@@ -628,3 +628,21 @@ body[data-phase="vote"] .action .btn.primary[disabled] { background: rgba(255, 2
 body[data-phase="vote"] .groupbar .btn[disabled] { opacity: .45; }
 
 .confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 70; pointer-events: none; }
+
+/* 反応マーク（開示中）：下から浮かび上がる／押すボタン */
+.reactbar { position: sticky; bottom: calc(env(safe-area-inset-bottom) + 92px); z-index: 4; display: flex; justify-content: center; gap: 12px; padding-top: 6px; }
+.react {
+  width: 52px; height: 52px; display: grid; place-items: center; padding: 0; border: 2px solid var(--ink); border-radius: 50%;
+  background: #fff; font-size: 26px; line-height: 1; box-shadow: 0 3px 0 var(--ink); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.react:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.react[disabled] { opacity: .35; box-shadow: none; }
+.floaters { position: fixed; inset: 0; z-index: 65; overflow: hidden; pointer-events: none; }
+.float { position: absolute; bottom: -48px; line-height: 1; animation: floatup 2.4s ease-out forwards; will-change: transform, opacity; }
+@keyframes floatup {
+  0% { transform: translate(0, 0) scale(.6); opacity: 0; }
+  12% { opacity: 1; transform: translate(calc(var(--sway) * .15), calc(var(--rise) * -.1)) scale(1.1); }
+  70% { opacity: 1; }
+  100% { transform: translate(var(--sway), calc(var(--rise) * -1)) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .float { animation: none; bottom: 140px; opacity: 0; animation: floatfade 1.2s ease-out forwards; } @keyframes floatfade { 0% { opacity: 1; } 100% { opacity: 0; } } }

@@ -22,6 +22,7 @@ import {
   normalizeOrder,
 } from './roles.js';
 
+export const REACTIONS = ['like', 'bad', 'cheer', 'laugh']; // いいね・バッド・応援・笑い
 const HIRAGANA = /^[\u3041-\u3093]$/;
 const DEFAULT_GRACE_MS = 3 * 60 * 1000; // 主催者・出題者が落ちてから引き継ぐまで
 const DEFAULT_EMPTY_CLOSE_MS = 30 * 60 * 1000; // 誰もいなくなってから部屋を閉じるまで
@@ -69,6 +70,7 @@ export class Room {
     this.votes = new Map(); // voterId -> answerId
     this.chooserId = null; // chooserMode が 'one' のとき、正解を選ぶ人（投票フェーズの間だけ）
     this.choice = null; // その人が選んだ回答の id
+    this.lastReactAt = new Map(); // 反応マークの連打対策（playerId -> 時刻）
     this.groups = []; // 主催者が「同じ回答」としてまとめたもの。回答の id の配列の配列（2つ以上）。投票・選択は、まとまりを1つとして数える
     this.revealCounter = 0;
     this.result = null;
@@ -431,6 +433,19 @@ export class Room {
         ? shuffle(rest)
         : rest.sort((a, b) => this.players.get(a.ownerId).seq - this.players.get(b.ownerId).seq);
     for (const a of ordered) this._reveal(a);
+  }
+
+  // ---------- 反応マーク（開示中だけ。状態は変えず、全員に流すだけ） ----------
+
+  // 連打しすぎないよう、1人あたり0.12秒に1回まで。種類は決まったものだけ。
+  react(by, kind) {
+    getActive(this, by);
+    this._need('reveal');
+    if (!REACTIONS.includes(kind)) throw new RoomError('bad_reaction', 'その反応は使えません');
+    const now = Date.now();
+    if (now - (this.lastReactAt.get(by) ?? 0) < 120) return null;
+    this.lastReactAt.set(by, now);
+    return { type: 'react', kind };
   }
 
   // ---------- 同じ回答のグループ化 ----------

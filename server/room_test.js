@@ -605,3 +605,19 @@ test('回答待ちの間だけ、経過秒が届く', () => {
   room.advance(ids[0]);
   assert.equal(room.viewFor(ids[1]).answerSec, undefined);
 });
+
+test('反応マーク：開示中だけ。決まった種類だけ。連打は間引かれる', () => {
+  const { room, ids } = setup(3);
+  const [A, B] = ids;
+  toAnswerPhase(room, ids);
+  assert.throws(() => room.react(B, 'like'), { code: 'bad_phase' }); // 回答中は使えない
+  ids.forEach((id, i) => room.submitAnswer(id, ['a', 'b', 'c'][i]));
+  room.advance(A); // 開示へ
+  assert.deepEqual(room.react(B, 'like'), { type: 'react', kind: 'like' });
+  assert.equal(room.react(B, 'bad'), null); // 0.12秒以内の連打は無視
+  assert.throws(() => room.react(A, 'fire'), { code: 'bad_reaction' });
+  assert.deepEqual(room.react(A, 'cheer'), { type: 'react', kind: 'cheer' }); // 人ごとに数える
+  room.revealAll(A);
+  room.advance(A); // 投票へ
+  assert.throws(() => room.react(B, 'laugh'), { code: 'bad_phase' }); // 投票中は使えない
+});
