@@ -306,3 +306,5 @@ button.slot.own:active { background: #fff3a8; }
 .boxed.hira { flex: none; width: 128px; }
 .boxed .hira-input { padding: 6px 48px 6px 14px; text-align: center; }
 .boxed.hira .inbtn { right: 4px; }
+
+.boxed .theme-input { display: block; min-height: 54px; padding: 12px 56px 12px 14px; line-height: 1.45; overflow: hidden; resize: none; }

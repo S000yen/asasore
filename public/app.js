@@ -209,6 +209,15 @@ function render() {
     const fresh = document.getElementById(keep.id);
     if (fresh) fresh.replaceWith(keep);
   }
+  fitTheme();
+}
+
+// 題材の欄は、長くても全部見えるよう、文字の量に合わせて高さを変える
+function fitTheme() {
+  const el = document.getElementById('themeInput');
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight + 4}px`;
 }
 
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
@@ -317,7 +326,7 @@ function topicHtml() {
         <span class="boxed hira"><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" aria-label="頭文字" value="${esc(drafts.hiragana)}"><button class="inbtn" data-do="draw" data-part="hiragana" aria-label="頭文字を引き直す">${ICON_REDRAW}</button></span>
         <span class="said">で始まる</span>
       </div>
-      <span class="boxed"><input id="themeInput" type="text" data-draft="theme" maxlength="40" aria-label="題材" value="${esc(drafts.theme)}"><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
+      <span class="boxed"><textarea id="themeInput" class="theme-input" rows="1" data-draft="theme" maxlength="40" aria-label="題材">${esc(drafts.theme)}</textarea><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
       <div class="sentence tail"><span class="said">といえば？</span><button class="roundbtn" data-do="draw" data-part="both" aria-label="頭文字と題材を、両方引き直す">${ICON_REDRAW}</button></div>
     </section>
     <div class="links right"><button class="link" data-do="reportTopic">⚑ この題材を報告</button></div>`;
@@ -624,7 +633,9 @@ $app.addEventListener('input', (e) => {
   const key = e.target.dataset?.draft;
   if (!key) return;
   if (key === 'code') e.target.value = e.target.value.toUpperCase();
+  if (key === 'theme' && /\n/.test(e.target.value)) e.target.value = e.target.value.replace(/\n/g, '');
   drafts[key] = e.target.value;
+  if (key === 'theme') fitTheme();
   if (key === 'hiragana' || key === 'theme') { // お題のプレビューだけ、作り直さずに書き換える
     const tile = document.getElementById('tpTile'), theme = document.getElementById('tpTheme');
     if (tile) tile.textContent = drafts.hiragana || '？';
@@ -635,6 +646,7 @@ $app.addEventListener('input', (e) => {
 $app.addEventListener('keydown', (e) => { // Enter で、コード入力と表示名変更を確定する（変換中は除く）
   if (e.key !== 'Enter' || e.isComposing) return;
   if (e.target.id === 'codeInput') { e.preventDefault(); handlers.join(); }
+  if (e.target.id === 'themeInput') e.preventDefault(); // 題材は1行の文章として扱う（改行は入れない）
   if (e.target.id === 'renameInput') { e.preventDefault(); handlers.doRename(); }
 });
 
