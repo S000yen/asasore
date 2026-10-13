@@ -351,6 +351,7 @@ export class Room {
     this.topicConfirmed = true;
     this.usedThemes.add(this.topic.theme); // この部屋では、同じ題材をランダムで出さない
     this.phase = 'answer';
+    this.answerStartedAt = Date.now();
     return { type: 'topic_confirmed', topic: this.topic };
   }
 
@@ -756,6 +757,7 @@ export class Room {
         }
       }
     }
+    if (this.phase === 'answer' && this.answerStartedAt) view.answerSec = Math.max(0, Math.floor((Date.now() - this.answerStartedAt) / 1000)); // 回答待ちの経過時間（画面で秒を進める）
     if (this.phase === 'vote') view.pendingCount = this._pending().count;
     if (this.phase === 'vote') view.myVote = this.settings.chooserMode === 'one' ? this.choice : (this.votes.get(pid) ?? null);
     if (this.phase === 'result' && this.result) {

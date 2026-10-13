@@ -33,6 +33,7 @@ const clientId = (() => {
 })();
 
 let ws = null;
+let viewAt = 0;             // 状態を受け取った時刻（経過時間の表示用）
 let view = null;            // サーバーから届いた自分用の状態
 let session = loadSession(); // { code, playerId }（端末に残す。再接続で同じ参加者として戻るため）
 let prefName = loadName();   // 自分で決めた表示名。空ならサーバーが「ユーザーN」を付ける
@@ -127,6 +128,7 @@ function onMessage(m) {
       return;
     case 'state':
       view = m.view;
+      viewAt = performance.now();
       ui.joining = false;
       if (ui.pendingRename !== null && view.me.name === ui.pendingRename) { // 表示名の変更が通った
         prefName = ui.pendingRename;
@@ -296,16 +298,34 @@ function startBand() {
 
 function render() {
   if (composing) { pendingRender = true; return; } // 日本語入力の変換中は作り直さない
-  const focused = document.activeElement;
-  const keep = focused && INPUT_IDS.includes(focused.id) ? focused : null;
   trackPhase();
-  $app.innerHTML = view ? roomHtml() : entryHtml();
-  // 入力中の欄は、作り直さずそのまま戻す（キーボードやカーソルを保つため）
-  if (keep) {
-    const fresh = document.getElementById(keep.id);
-    if (fresh) fresh.replaceWith(keep);
-  }
+  morphInto($app, view ? roomHtml() : entryHtml());
   fitTheme();
+}
+
+// 画面の更新は、全部を作り直さず、変わったところだけを書き換える。
+// スクロール位置、入力中の欄（キーボード）、動いている演出が、他の人の操作で途切れないように。
+function morphInto(root, html) {
+  const next = document.createElement('div');
+  next.innerHTML = html;
+  syncChildren(root, next);
+}
+function syncChildren(parent, fresh) {
+  const want = fresh.childNodes;
+  for (let i = 0; i < want.length; i++) {
+    const n = want[i], o = parent.childNodes[i];
+    if (!o) { parent.appendChild(n.cloneNode(true)); continue; }
+    if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName) { parent.replaceChild(n.cloneNode(true), o); continue; }
+    if (n.nodeType !== 1) { if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; continue; }
+    for (const a of [...o.attributes]) if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
+    for (const a of n.attributes) if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+    if (o.nodeName === 'TEXTAREA' || o.nodeName === 'INPUT') {
+      if (o !== document.activeElement && o.value !== n.value) o.value = n.value; // 入力中の欄の中身は、触らない
+      continue;
+    }
+    syncChildren(o, n);
+  }
+  while (parent.childNodes.length > want.length) parent.removeChild(parent.lastChild);
 }
 
 // 題材の欄は、長くても全部見えるよう、文字の量に合わせて高さを変える
@@ -329,7 +349,11 @@ const ICON_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" s
 const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? 'lg' : n <= 22 ? 'md' : 'sm'; };
 
 // 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
-const progress = (label, list, done) => `<div class="progress"><h2>${label} ${list.filter(done).length}/${list.length}</h2>${chips(list, done)}</div>`;
+const progress = (label, list, done, side = '') => `<div class="progress"><h2><span>${label} ${list.filter(done).length}/${list.length}</span>${side}</h2>${chips(list, done)}</div>`;
+// 回答待ちの経過時間：サーバーから届いた秒に、受け取ってからの時間を足して、1秒ごとに進める
+const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const elapsedNow = () => (view?.answerSec ?? 0) + Math.floor((performance.now() - viewAt) / 1000);
+setInterval(() => { const el = document.getElementById('elapsed'); if (el && view?.phase === 'answer') el.textContent = clock(elapsedNow()); }, 500);
 
 const telop = (t) => t
   ? `<div class="telop"><div class="tile" id="tpTile">${esc(t.hiragana || '？')}</div><div class="telop-text"><span class="tiny">で始まる</span><strong id="tpTheme">${esc(t.theme)}</strong><span class="tiny">といえば？</span></div></div>`
@@ -576,7 +600,7 @@ function answerHtml() {
       <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
       <div class="box-actions">${v.myAnswer !== null ? '<button class="btn small" data-do="withdraw">取り下げる</button>' : '<button class="btn primary small" data-do="submitAnswer">回答する</button>'}</div>
     </div>
-    ${progress('回答状況', v.players, (p) => p.answered)}`;
+    ${progress('回答状況', v.players, (p) => p.answered, `<span class="elapsed" id="elapsed">${clock(elapsedNow())}</span>`)}`;
 }
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。

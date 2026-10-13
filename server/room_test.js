@@ -595,3 +595,13 @@ test('グループ化：投票の前後以外ではできない', () => {
   room.submitAnswer(ids[0], 'a'); room.submitAnswer(ids[1], 'b');
   assert.throws(() => room.group(ids[0], ['x', 'y']), { code: 'bad_phase' });
 });
+
+test('回答待ちの間だけ、経過秒が届く', () => {
+  const { room, ids } = setup(3);
+  toAnswerPhase(room, ids);
+  const sec = room.viewFor(ids[1]).answerSec;
+  assert.ok(Number.isInteger(sec) && sec >= 0);
+  room.submitAnswer(ids[0], 'a'); room.submitAnswer(ids[1], 'b'); room.submitAnswer(ids[2], 'c');
+  room.advance(ids[0]);
+  assert.equal(room.viewFor(ids[1]).answerSec, undefined);
+});
