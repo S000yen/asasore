@@ -10,6 +10,7 @@ import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
 import { RoomError } from './roles.js';
 import { TopicPool } from './topics.js';
+import { createStoreFromEnv } from './store.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
@@ -28,6 +29,7 @@ const MIME = {
 
 const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
 const topics = new TopicPool();
+topics.attach(createStoreFromEnv()); // DATABASE_URL があれば、題材と報告を保存・読み込み。無ければ、メモリだけ（起動は待たない）
 
 // ---------- HTTP ----------
 
@@ -115,7 +117,7 @@ function closeRoom(code, entry) {
 
 // ---------- 操作の受け付け ----------
 
-function handleAct(entry, pid, msg) {
+function handleAct(entry, pid, msg, clientId) {
   const { room } = entry;
   let ev;
   switch (msg.a) {
@@ -136,7 +138,14 @@ function handleAct(entry, pid, msg) {
         hiragana: String(msg.hiragana ?? '').trim() || room.topic?.hiragana,
         theme: String(msg.theme ?? '').trim() || room.topic?.theme,
       };
-      room.setTopic(pid, topics.draw(current, msg.part));
+      room.setTopic(pid, topics.draw(current, msg.part, room.drawFilter()));
+      break;
+    }
+    case 'reportTopic': { // 選択中のお題を「おかしい」と報告する。この部屋では二度と出さず、全体の出現率も下げ、題材を引き直す
+      const theme = String(msg.theme ?? '');
+      room.reportTopic(pid, theme);
+      topics.flag(theme, clientId ?? pid);
+      room.setTopic(pid, topics.draw(room.topic, 'theme', room.drawFilter()));
       break;
     }
     case 'confirmTopic': // 手入力の内容が付いていれば、先にそれを反映してから確定する（失敗したらここで止まる）
@@ -203,7 +212,7 @@ function handleAct(entry, pid, msg) {
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  const ctx = { code: null, pid: null };
+  const ctx = { code: null, pid: null, clientId: null }; // clientId: 端末ごとの匿名ID（同じ端末の報告を1回と数えるため）
   ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;
@@ -233,6 +242,7 @@ wss.on('connection', (ws) => {
     } catch {
       return;
     }
+    if (typeof msg.clientId === 'string' && /^[\w-]{8,64}$/.test(msg.clientId)) ctx.clientId = msg.clientId;
     try {
       if (msg.t === 'create') {
         const code = newCode();
@@ -250,7 +260,7 @@ wss.on('connection', (ws) => {
       } else if (msg.t === 'act') {
         const entry = rooms.get(ctx.code);
         if (!entry || !ctx.pid) throw new RoomError('not_joined', '部屋に入っていません');
-        const out = handleAct(entry, ctx.pid, msg);
+        const out = handleAct(entry, ctx.pid, msg, ctx.clientId);
         if (out.needConfirm) {
           send(ws, { t: 'needConfirm', pending: out.needConfirm.pending, phase: out.needConfirm.phase });
           return;

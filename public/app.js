@@ -3,6 +3,7 @@
 // ---------- 状態 ----------
 
 const STORE = 'asaso.session';
+const CLIENT_STORE = 'asaso.client'; // この端末の匿名ID。「おかしい」の報告を、端末ごとに1回と数えるために使う
 const NAME_STORE = 'asaso.name'; // 自分で付けた表示名（次の部屋でも使う）。未設定なら、部屋ごとに「ユーザーN」になる
 const INPUT_IDS = ['codeInput', 'renameInput', 'answerInput', 'hiraInput', 'themeInput'];
 const $app = document.getElementById('app');
@@ -19,6 +20,17 @@ const loadName = () => {
 const saveName = (n) => {
   try { localStorage.setItem(NAME_STORE, n); } catch { /* 保存できなくても動く */ }
 };
+
+const clientId = (() => {
+  try {
+    let id = localStorage.getItem(CLIENT_STORE);
+    if (!id) {
+      id = (crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
+      localStorage.setItem(CLIENT_STORE, id);
+    }
+    return id;
+  } catch { return null; } // 保存できない端末では、IDなし（サーバー側で参加者ごとに数える）
+})();
 
 let ws = null;
 let view = null;            // サーバーから届いた自分用の状態
@@ -73,7 +85,7 @@ const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
 function sendJoin(code) {
   lastJoinCode = code;
-  sendRaw({ t: 'join', code, name: prefName, playerId: session?.code === code ? session.playerId : null });
+  sendRaw({ t: 'join', code, name: prefName, clientId, playerId: session?.code === code ? session.playerId : null });
 }
 
 function joinFromLink() {
@@ -297,6 +309,7 @@ function topicHtml() {
         <button class="btn small" data-do="draw" data-part="theme">引き直す</button>
       </div>
       <button class="btn block" data-do="draw" data-part="both">まとめて引き直す</button>
+      <button class="btn small block danger" data-do="reportTopic">この題材はおかしい（報告して引き直す）</button>
     </section>
     <button class="btn" data-do="sheet" data-kind="presenter">出題者を他の人に任せる</button>`;
 }
@@ -471,7 +484,7 @@ function confirmPick(kind, id) {
 const handlers = {
   create() {
     autoJoin = true;
-    sendRaw({ t: 'create', name: prefName });
+    sendRaw({ t: 'create', name: prefName, clientId });
   },
   openJoin() {
     ui.joinOpen = true;
@@ -520,6 +533,17 @@ const handlers = {
   },
   pick(d) { confirmPick(d.kind, d.id); },
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
+  reportTopic() {
+    const t = view.topic?.theme;
+    if (!t || drafts.theme.trim() !== t) return toast('いま出ている題材だけ、報告できます（書き換えた題材は対象外です）');
+    ui.modal = {
+      body: `「${t}」を、おかしい題材として報告します。この部屋では、もう出なくなります。新しい題材を引き直します。`,
+      ok: '報告する',
+      danger: true,
+      onOk: () => act('reportTopic', { theme: t }),
+    };
+    render();
+  },
   draw(d) { act('drawTopic', { part: d.part, hiragana: drafts.hiragana, theme: drafts.theme }); },
   confirmTopic() { act('confirmTopic', { hiragana: drafts.hiragana, theme: drafts.theme }); },
   submitAnswer() {

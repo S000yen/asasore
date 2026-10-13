@@ -65,6 +65,8 @@ export class Room {
     this.revealCounter = 0;
     this.result = null;
     this.history = []; // 終わったラウンドの記録（削除された人の分も含む）
+    this.usedThemes = new Set(); // この部屋で、確定して回した題材
+    this.blockedThemes = new Set(); // この部屋で、「おかしい」と報告された題材
   }
 
   // ---------- 入室・退室 ----------
@@ -175,6 +177,8 @@ export class Room {
     this.answers.clear();
     this.votes.clear();
     this.history = [];
+    this.usedThemes.clear();
+    this.blockedThemes.clear();
     this.result = null;
     this.hostId = null;
     this.presenterId = null;
@@ -317,8 +321,24 @@ export class Room {
     this._need('topic');
     if (!this.topic) throw new RoomError('bad_topic', 'お題がまだ決まっていません');
     this.topicConfirmed = true;
+    this.usedThemes.add(this.topic.theme); // この部屋では、同じ題材をランダムで出さない
     this.phase = 'answer';
     return { type: 'topic_confirmed', topic: this.topic };
+  }
+
+  // 「おかしいお題」の報告。この部屋では、その題材を二度とランダムで出さない。
+  // 全体の出現率を下げる処理は、お題プール（topics.js）が受け持つ。
+  reportTopic(by, theme) {
+    requirePresenter(this, by);
+    this._need('topic');
+    if (!this.topic || this.topic.theme !== theme) throw new RoomError('bad_topic', 'お題が変わりました。もう一度、確かめてください');
+    this.blockedThemes.add(theme);
+    return { type: 'topic_reported', theme };
+  }
+
+  // ランダムで引くときに除く題材（お題プールに渡す）
+  drawFilter() {
+    return { used: this.usedThemes, blocked: this.blockedThemes };
   }
 
   submitAnswer(by, text) {

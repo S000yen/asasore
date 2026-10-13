@@ -243,3 +243,41 @@ test('回答の途中で名前を変えても、匿名モードの作者は漏�
   assert.equal(seen.includes('べつの名前'), true); // 参加者一覧には出る
   assert.equal(room.viewFor(A).answers.every((a) => !a.author), true); // 回答に作者は付かない
 });
+
+test('確定した題材は、その部屋の「使った題材」になる。引き直しだけでは、ならない', () => {
+  const { room, ids } = setup(3);
+  const [A] = ids;
+  room.startRound(A);
+  room.setTopic(A, { hiragana: 'あ', theme: '引き直した題材' });
+  room.setTopic(A, { hiragana: 'あ', theme: '回した題材' });
+  assert.equal(room.usedThemes.size, 0);
+  room.confirmTopic(A);
+  assert.deepEqual([...room.drawFilter().used], ['回した題材']);
+});
+
+test('報告：出題者だけが、いまのお題を報告でき、その部屋では出なくなる', () => {
+  const { room, ids } = setup(3);
+  const [A, B] = ids;
+  room.startRound(A);
+  room.setTopic(A, { hiragana: 'あ', theme: 'おかしい題材' });
+  assert.throws(() => room.reportTopic(B, 'おかしい題材'), { code: 'not_presenter' });
+  assert.throws(() => room.reportTopic(A, '別の題材'), { code: 'bad_topic' }); // いまのお題と違う
+  room.reportTopic(A, 'おかしい題材');
+  assert.deepEqual([...room.drawFilter().blocked], ['おかしい題材']);
+  assert.equal(room.usedThemes.size, 0); // 回していないので、使った題材にはならない
+});
+
+test('報告は、お題を選んでいる間だけできる', () => {
+  const { room, ids } = setup(2);
+  const [A] = ids;
+  assert.throws(() => room.reportTopic(A, 'x'), { code: 'bad_phase' }); // ロビー
+  toAnswerPhase(room, ids);
+  assert.throws(() => room.reportTopic(A, '面白いもの'), { code: 'bad_phase' }); // 回答中
+});
+
+test('部屋を閉じると、使った題材・報告の記録も破棄される', () => {
+  const { room, ids } = setup(2);
+  toAnswerPhase(room, ids);
+  room.close(ids[0]);
+  assert.equal(room.usedThemes.size + room.blockedThemes.size, 0);
+});
