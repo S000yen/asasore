@@ -138,17 +138,19 @@ test('保存先がつながらなくても動き、つながったら、その�
 
 test('管理：統計と、報告・手入力の題材のリセット（シードは残る）', async () => {
   const calls = [];
-  const store = { async load() { return { themes: [], flags: [] }; }, async addTheme() {}, async addFlag() {}, async clearFlags() { calls.push('clearFlags'); }, async deleteUserThemes() { calls.push('deleteUserThemes'); } };
+  const store = { async load() { return { themes: [], flags: [] }; }, async addTheme() {}, async addFlag() {}, async clearFlags() { calls.push('clearFlags'); }, async deleteUserThemes() { calls.push('deleteUserThemes'); }, async addThemes(l) { calls.push(`add:${l.join('|')}`); } };
   const pool = new TopicPool(['A', 'B'], { hideAt: 2 });
   await pool.attach(store, { retryMs: 0, log: quiet });
   pool.register({ hiragana: 'あ', theme: '手入力' });
   pool.flag('A', 'c1'); pool.flag('A', 'c2'); pool.flag('手入力', 'c1');
+  const added = await pool.addThemes('追加1\n\n追加2\nA\n追加1\n' + 'あ'.repeat(41));
+  assert.deepEqual(added, { added: 2, skipped: 2, invalid: 1, firstInvalid: 'あ'.repeat(41) });
   const s = pool.stats();
-  assert.equal(s.total, 3); assert.equal(s.seed, 2); assert.equal(s.user, 1);
+  assert.equal(s.total, 5); assert.equal(s.seed, 2); assert.equal(s.admin, 2); assert.equal(s.user, 1);
   assert.equal(s.flags, 3); assert.equal(s.hidden, 1); assert.equal(s.top[0].theme, 'A');
   await pool.resetFlags();
   assert.equal(pool.stats().flags, 0); assert.equal(pool.weightOf('A'), 1);
   assert.equal(await pool.removeUserThemes(), 1);
-  assert.equal(pool.has('手入力'), false); assert.equal(pool.has('A'), true);
-  assert.deepEqual(calls, ['clearFlags', 'deleteUserThemes']);
+  assert.equal(pool.has('手入力'), false); assert.equal(pool.has('A'), true); assert.equal(pool.has('追加1'), true); // 足した題材は残る
+  assert.deepEqual(calls, ['add:追加1|追加2', 'clearFlags', 'deleteUserThemes']);
 });

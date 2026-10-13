@@ -13,7 +13,7 @@
   h1 { margin: 0; font-size: 20px; }
   h2 { margin: 0 0 6px; font-size: 14px; color: var(--soft); }
   .card { padding: 14px; border-radius: 14px; background: #fff; }
-  input { width: 100%; padding: 12px; border: 2px solid rgba(85, 101, 127, .35); border-radius: 10px; font-size: 16px; }
+  input, textarea { width: 100%; font-family: inherit; padding: 12px; border: 2px solid rgba(85, 101, 127, .35); border-radius: 10px; font-size: 16px; }
   button { padding: 12px 16px; border: 2px solid var(--ink); border-radius: 12px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 700; }
   button.ghost { background: #fff; color: var(--ink); }
   button.danger { background: #fff; color: var(--stamp); border-color: var(--stamp); }
@@ -49,12 +49,17 @@
       <ol id="top"></ol>
     </section>
     <section class="card">
+      <h2>題材を増やす</h2>
+      <textarea id="newThemes" rows="5" placeholder="1行に1題材（40文字まで）"></textarea>
+      <div class="row" style="margin-top:10px"><button id="addT">追加する</button></div>
+    </section>
+    <section class="card">
       <h2>リセット</h2>
       <div class="row">
         <button class="danger" id="rFlags">報告を全部消す</button>
         <button class="danger" id="rUser">手入力の題材を消す</button>
       </div>
-      <p class="msg" style="margin:10px 0 0">消す前に、もう一度押すかどうかを聞きます。シードの題材は消えません。</p>
+      <p class="msg" style="margin:10px 0 0">消す前に、もう一度押すかどうかを聞きます。シードと、足した題材は消えません。</p>
     </section>
     <div class="row">
       <button class="ghost" id="reload">更新</button>
@@ -79,7 +84,7 @@
     last = s;
     dl($('srv'), [['版', s.build], ['稼働時間', `${Math.floor(s.uptimeSec / 3600)}時間${Math.floor(s.uptimeSec / 60) % 60}分`], ['いまの部屋', `${s.rooms.count} 部屋`], ['接続中の人', `${s.rooms.connectedPlayers} 人`]]);
     const t = s.topics;
-    dl($('tp'), [['保存先(DB)', !t.dbConfigured ? '未設定（メモリのみ）' : t.dbReady ? 'つながっている' : 'つながっていない'], ['題材の合計', t.total], ['シード', t.seed], ['手入力', t.user], ['報告された題材', t.flaggedThemes], ['報告の合計', t.flags], [`出なくなった題材(${t.hideAt}端末以上)`, t.hidden]]);
+    dl($('tp'), [['保存先(DB)', !t.dbConfigured ? '未設定（メモリのみ）' : t.dbReady ? 'つながっている' : 'つながっていない'], ['題材の合計', t.total], ['シード', t.seed], ['管理ページで足した題材', t.admin], ['手入力', t.user], ['報告された題材', t.flaggedThemes], ['報告の合計', t.flags], [`出なくなった題材(${t.hideAt}端末以上)`, t.hidden]]);
     $('top').replaceChildren(...t.top.map((x) => { const li = document.createElement('li'); li.textContent = `${x.theme}（${x.n}）`; return li; }));
     if (!t.top.length) { const li = document.createElement('li'); li.textContent = 'まだありません'; $('top').append(li); }
   }
@@ -94,7 +99,7 @@
   $('copy').onclick = async () => {
     if (!last) return;
     const t = last.topics;
-    const text = `版 ${last.build} / 部屋 ${last.rooms.count}・接続中 ${last.rooms.connectedPlayers}人 / DB ${t.dbConfigured ? (t.dbReady ? 'OK' : '未接続') : '未設定'} / 題材 ${t.total}（シード ${t.seed}・手入力 ${t.user}）/ 報告 ${t.flags}件（${t.flaggedThemes}題材・出なくなった ${t.hidden}）\n報告上位: ${t.top.map((x) => `${x.theme}(${x.n})`).join('、') || 'なし'}`;
+    const text = `版 ${last.build} / 部屋 ${last.rooms.count}・接続中 ${last.rooms.connectedPlayers}人 / DB ${t.dbConfigured ? (t.dbReady ? 'OK' : '未接続') : '未設定'} / 題材 ${t.total}（シード ${t.seed}・追加 ${t.admin}・手入力 ${t.user}）/ 報告 ${t.flags}件（${t.flaggedThemes}題材・出なくなった ${t.hidden}）\n報告上位: ${t.top.map((x) => `${x.theme}(${x.n})`).join('、') || 'なし'}`;
     try { await navigator.clipboard.writeText(text); say('コピーしました'); } catch { say(text); }
   };
   function armed(btn, label, what, doneText) {
@@ -109,6 +114,14 @@
       try { const r = await api('/admin/api/reset', { what }); await refresh(); say(doneText(r)); } catch (e) { say(e.message, true); }
     };
   }
+  $('addT').onclick = async () => {
+    try {
+      const r = await api('/admin/api/addThemes', { text: $('newThemes').value });
+      await refresh();
+      $('newThemes').value = '';
+      say(`${r.added}件を追加しました（重複 ${r.skipped}件・長すぎ ${r.invalid}件）` + (r.persisted || !r.added ? '' : '。保存先につながっていないため、再起動で消えます'));
+    } catch (e) { say(e.message, true); }
+  };
   armed($('rFlags'), '報告を全部消す', 'flags', () => '報告を全部消しました');
   armed($('rUser'), '手入力の題材を消す', 'userThemes', (r) => `手入力の題材を ${r.removed} 件消しました`);
 </script>

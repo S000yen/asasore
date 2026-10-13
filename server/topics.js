@@ -35,6 +35,7 @@ export class TopicPool {
     this.hideAt = hideAt;
     this.themes = new Map(); // 題材 -> { flaggers: Set<clientId> }
     for (const t of seedThemes) this._ensure(t);
+    this.userThemes = new Set(); // 対戦中に手入力されて登録された題材（source = 'user'）
     this.pairs = new Set(); // 「ひらがな＋題材」の組み合わせ（登録済みのもの）
     this.store = null;
     this.ready = false;
@@ -90,7 +91,7 @@ export class TopicPool {
   register({ hiragana, theme }) {
     const newTheme = !this.themes.has(theme);
     this._ensure(theme);
-    if (newTheme) this._persist(() => this.store.addTheme(theme, 'user'));
+    if (newTheme) { this.userThemes.add(theme); this._persist(() => this.store.addTheme(theme, 'user')); }
     const key = `${hiragana}\t${theme}`;
     const newPair = !this.pairs.has(key);
     this.pairs.add(key);
@@ -114,12 +115,29 @@ export class TopicPool {
     let user = 0, flagged = 0, hidden = 0, flags = 0;
     const list = [];
     for (const [theme, { flaggers }] of this.themes) {
-      if (!seed.has(theme)) user += 1;
+      if (this.userThemes.has(theme)) user += 1;
       if (flaggers.size > 0) { flagged += 1; flags += flaggers.size; list.push({ theme, n: flaggers.size }); }
       if (flaggers.size >= this.hideAt) hidden += 1;
     }
     list.sort((a, b) => b.n - a.n);
-    return { total: this.themes.size, seed: this.themes.size - user, user, flaggedThemes: flagged, flags, hidden, hideAt: this.hideAt, top: list.slice(0, top), dbReady: this.ready, dbConfigured: Boolean(this.store) };
+    const seedCount = [...this.themes.keys()].filter((x) => seed.has(x)).length;
+    return { total: this.themes.size, seed: seedCount, admin: this.themes.size - seedCount - user, user, flaggedThemes: flagged, flags, hidden, hideAt: this.hideAt, top: list.slice(0, top), dbReady: this.ready, dbConfigured: Boolean(this.store) };
+  }
+
+  // 題材を足す（管理ページから）。改行で区切った文字列か配列。1〜40文字、重複は数えない。
+  async addThemes(input) {
+    const raw = Array.isArray(input) ? input : String(input ?? '').split(/\r?\n/);
+    const added = [], skipped = [], invalid = [];
+    for (const line of raw) {
+      const theme = String(line).trim();
+      if (!theme) continue;
+      if ([...theme].length > 40) { invalid.push(theme); continue; }
+      if (this.themes.has(theme) || added.includes(theme)) { skipped.push(theme); continue; }
+      added.push(theme);
+    }
+    for (const theme of added) this._ensure(theme);
+    if (added.length && this.store && this.ready) await this.store.addThemes(added, 'admin');
+    return { added: added.length, skipped: skipped.length, invalid: invalid.length, firstInvalid: invalid[0] ?? null };
   }
 
   // 報告を全部消す（メモリと保存先の両方）
@@ -128,11 +146,11 @@ export class TopicPool {
     if (this.store && this.ready) await this.store.clearFlags();
   }
 
-  // 手入力の題材を全部消す（シードは残す。その題材への報告も消える）
+  // 手入力の題材を全部消す（シードと、管理ページで足した題材は残す。その題材への報告も消える）
   async removeUserThemes() {
-    const seed = new Set(this.seed);
     let removed = 0;
-    for (const theme of [...this.themes.keys()]) if (!seed.has(theme)) { this.themes.delete(theme); removed += 1; }
+    for (const theme of [...this.userThemes]) { if (this.themes.delete(theme)) removed += 1; }
+    this.userThemes.clear();
     this.pairs.clear();
     if (this.store && this.ready) await this.store.deleteUserThemes();
     return removed;
@@ -150,10 +168,10 @@ export class TopicPool {
       const savedFlags = new Set(flags.map((r) => `${r.theme}\t${r.client_id}`));
       // つながらなかった間にメモリだけで増えた題材・報告があれば、いま保存する
       for (const [theme, { flaggers }] of this.themes) {
-        if (!savedThemes.has(theme)) await store.addTheme(theme, 'user');
+        if (!savedThemes.has(theme)) await store.addTheme(theme, this.userThemes.has(theme) ? 'user' : 'admin');
         for (const id of flaggers) if (!savedFlags.has(`${theme}\t${id}`)) await store.addFlag(theme, id);
       }
-      for (const { theme } of themes) this._ensure(theme);
+      for (const { theme, source } of themes) { this._ensure(theme); if (source === 'user') this.userThemes.add(theme); }
       for (const { theme, client_id: clientId } of flags) this._ensure(theme).flaggers.add(clientId);
       this.ready = true;
       log.log(`[db] 題材 ${this.themes.size} 件、報告 ${flags.length} 件を読み込みました`);

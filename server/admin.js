@@ -51,6 +51,11 @@ export async function handleAdmin(req, res, url, ctx, token = process.env.ADMIN_
       });
       return true;
     }
+    if (url.pathname === '/admin/api/addThemes') {
+      const r = await ctx.topics.addThemes(body.text);
+      json(res, 200, { ok: true, ...r, total: ctx.topics.stats().total, persisted: Boolean(ctx.topics.store && ctx.topics.ready) });
+      return true;
+    }
     if (url.pathname === '/admin/api/reset') {
       if (body.what === 'flags') { await ctx.topics.resetFlags(); json(res, 200, { ok: true }); return true; }
       if (body.what === 'userThemes') { const removed = await ctx.topics.removeUserThemes(); json(res, 200, { ok: true, removed }); return true; }

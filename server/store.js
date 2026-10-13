@@ -65,20 +65,26 @@ export class PgStore {
   async stats() {
     const r = await this.pool.query(`SELECT
       (SELECT count(*) FROM themes WHERE source = 'seed') AS seed,
-      (SELECT count(*) FROM themes WHERE source <> 'seed') AS usr,
+      (SELECT count(*) FROM themes WHERE source = 'admin') AS adm,
+      (SELECT count(*) FROM themes WHERE source = 'user') AS usr,
       (SELECT count(*) FROM theme_flags) AS flags`);
     const row = r.rows[0];
-    return { seed: Number(row.seed), user: Number(row.usr), flags: Number(row.flags) };
+    return { seed: Number(row.seed), admin: Number(row.adm), user: Number(row.usr), flags: Number(row.flags) };
   }
 
   async clearFlags() {
     await this.pool.query('DELETE FROM theme_flags');
   }
 
-  // 手入力の題材（と、その報告）を消す。シードの題材は残す。
+  // 手入力の題材（と、その報告）を消す。シードと、管理ページで足した題材は残す。
   async deleteUserThemes() {
-    await this.pool.query("DELETE FROM theme_flags WHERE theme IN (SELECT theme FROM themes WHERE source <> 'seed')");
-    await this.pool.query("DELETE FROM themes WHERE source <> 'seed'");
+    await this.pool.query("DELETE FROM theme_flags WHERE theme IN (SELECT theme FROM themes WHERE source = 'user')");
+    await this.pool.query("DELETE FROM themes WHERE source = 'user'");
+  }
+
+  // 管理ページから、題材を足す（すでにあるものは、そのまま）
+  async addThemes(list, source = 'admin') {
+    for (const theme of list) await this.addTheme(theme, source);
   }
 
   async close() {

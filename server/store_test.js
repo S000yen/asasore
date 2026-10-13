@@ -58,9 +58,10 @@ test('管理：件数が数えられ、報告・手入力の題材だけを消�
   await store.load(['A', 'B']);
   await store.addTheme('手入力1', 'user');
   await store.addFlag('A', 'c1'); await store.addFlag('手入力1', 'c1');
-  assert.deepEqual(await store.stats(), { seed: 2, user: 1, flags: 2 });
+  await store.addThemes(['足した題材']);
+  assert.deepEqual(await store.stats(), { seed: 2, admin: 1, user: 1, flags: 2 });
   await store.deleteUserThemes();
-  assert.deepEqual(await store.stats(), { seed: 2, user: 0, flags: 1 }); // 手入力への報告も消える。シードへの報告は残る
+  assert.deepEqual(await store.stats(), { seed: 2, admin: 1, user: 0, flags: 1 }); // 足した題材は残る // 手入力への報告も消える。シードへの報告は残る
   await store.clearFlags();
-  assert.deepEqual(await store.stats(), { seed: 2, user: 0, flags: 0 });
+  assert.deepEqual(await store.stats(), { seed: 2, admin: 1, user: 0, flags: 0 });
 });
