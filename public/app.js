@@ -273,7 +273,7 @@ function roomHtml() {
   const v = view;
   return `
     <header class="bar">
-      <div class="room"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b></div>
+      <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b></button>
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
         ${v.history.length ? '<button class="textbtn" data-do="sheet" data-kind="history">記録</button>' : ''}
@@ -599,6 +599,21 @@ const handlers = {
   advance() { act('advance'); },
   modalOk() { const m = ui.modal; ui.modal = null; render(); m?.onOk?.(); },
   modalCancel() { ui.modal = null; render(); },
+  async copyCode() {
+    const code = view.code;
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch { // 使えない環境では、選択してコピーする方法で試す
+      const t = document.createElement('textarea');
+      t.value = code; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch { /* 失敗しても動く */ }
+      t.remove();
+      if (!ok) return toast(`部屋番号：${code}`);
+    }
+    toast(`部屋番号 ${code} をコピーしました`);
+  },
   async share() {
     const url = `${location.origin}/?code=${view.code}`; // 開くだけで、この部屋にそのまま入れる
     ui.sheet = null;

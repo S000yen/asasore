@@ -39,7 +39,8 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   padding: calc(env(safe-area-inset-top) + 10px) 0 10px;
   background: var(--dawn);
 }
-.room { display: flex; align-items: baseline; gap: 8px; }
+.room { display: flex; align-items: baseline; gap: 8px; justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; text-align: left; align-items: center; }
+.room:active .code { opacity: .6; }
 .room-label { font-size: 13px; color: var(--ink-soft); }
 .code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
 .round { font-family: var(--display); font-size: 17px; color: var(--ink); text-align: center; white-space: nowrap; }
