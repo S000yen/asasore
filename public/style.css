@@ -382,3 +382,95 @@ button.cell.open:active { filter: brightness(.95); }
 .cell.dark.mine { border-color: var(--telop); }
 .cell.open.mine { border-color: var(--telop); }
 .cell.dark.tap:not(.mine) { animation: glow 2.2s ease-in-out infinite; border-color: rgba(255,216,61,.6); }
+
+.redraw-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.redraw-row .redraws { margin: 0; }
+.rbtn.trash { min-width: 60px; padding: 4px 6px; border: 2px solid rgba(85, 101, 127, .2); border-radius: 18px; color: var(--stamp); }
+.rbtn.trash small { color: var(--ink-soft); }
+.rbtn { min-width: 70px; }
+
+/* 出題者のチップ（題決めの間、下の主ボタンの上） */
+.who {
+  display: flex; align-items: center; gap: 8px; justify-self: center; max-width: 100%;
+  padding: 4px 14px 4px 4px; border: 2px solid rgba(85, 101, 127, .25); border-radius: 999px; background: rgba(255, 255, 255, .8); color: var(--ink); font-size: 14px;
+}
+button.who:active { background: #fff; }
+.av { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: var(--telop); font-family: var(--display); font-size: 15px; line-height: 1; }
+.who-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.who-edit { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding-left: 10px; border-left: 2px solid rgba(85, 101, 127, .25); color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+
+/* 最初のページ：アイコンと同じテロップを主役に */
+.entry { min-height: 100dvh; display: flex; flex-direction: column; gap: 22px; padding-top: calc(env(safe-area-inset-top) + 56px); padding-bottom: calc(env(safe-area-inset-bottom) + 18px); }
+.entry-top { display: grid; gap: 14px; margin-bottom: 8px; }
+.telop.hero { padding: 18px 16px; transform: rotate(-3deg); }
+.telop.hero .tile { width: 76px; height: 76px; font-size: 48px; }
+.hero-title { margin: 0; font-family: var(--display); font-weight: 400; font-size: 29px; line-height: 1.25; }
+.lead { margin: 0; text-align: center; font-size: 14px; color: var(--ink-soft); }
+.center-text { text-align: center; }
+.link.center { display: block; margin: 0 auto; font-size: 14px; }
+.foot-hint { margin: auto 0 0; text-align: center; font-size: 12px; color: var(--ink-soft); opacity: .8; padding-top: 24px; }
+.lead, .foot-hint { text-wrap: balance; }
+
+/* 回答欄：ボタンは文章欄の中の右下 */
+.answerbox { position: relative; }
+.answerbox textarea { display: block; padding-bottom: 60px; background: #fff; }
+.answerbox textarea[readonly] { background: rgba(255, 255, 255, .55); border-color: var(--line); }
+.box-actions { position: absolute; right: 8px; bottom: 8px; }
+.box-actions .btn { min-height: 42px; min-width: 96px; }
+
+/* 入室の2ボタン：画面幅に比例して、アイコンも文字も大きさを変える（折り返さない） */
+.entry-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bigbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vw;
+  min-height: 44vw; max-height: 200px; padding: 14px 8px;
+  border: 2px solid var(--ink); border-radius: 18px; background: #fff; color: var(--ink);
+  font-weight: 700; font-size: clamp(13px, 4.3vw, 20px); white-space: nowrap;
+}
+.bigbtn.primary { background: var(--ink); color: #fff; }
+.bigbtn svg { width: clamp(50px, 18vw, 88px); height: clamp(50px, 18vw, 88px); flex: none; }
+.bigbtn:active { transform: scale(.98); }
+@media (min-width: 480px) { .bigbtn { min-height: 180px; gap: 12px; } }
+
+.hero-title { font-size: clamp(20px, 6.9vw, 34px); white-space: nowrap; }
+@media (max-width: 479px) { .telop.hero .tile { width: clamp(56px, 19vw, 76px); height: clamp(56px, 19vw, 76px); font-size: clamp(36px, 12vw, 48px); } }
+
+/* 待ち時間の、跳ね返るロゴ */
+.bfield { position: relative; height: min(56dvh, 460px); overflow: hidden; border-radius: 18px; background: var(--ink); }
+.blogo {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 7px; width: 108px; height: 64px; padding: 7px;
+  border: 3px solid var(--ink); border-radius: 7px; background: var(--telop); will-change: transform;
+}
+.blogo .bt { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 4px; background: var(--ink); color: var(--telop); font-family: var(--display); font-size: 25px; line-height: 1; }
+.blogo .bl { display: grid; gap: 7px; flex: 1; }
+.blogo .bl i { display: block; height: 8px; border-radius: 4px; background: var(--ink); }
+.blogo .bl i:last-child { width: 60%; }
+.blogo.c0 { background: var(--telop); }
+.blogo.c1 { background: #fff; }
+.blogo.c2 { background: var(--stamp); }
+.blogo.c3 { background: var(--dawn); }
+.blogo.c0 .bt { color: var(--telop); } .blogo.c1 .bt { color: var(--telop); } .blogo.c2 .bt { color: #fff; } .blogo.c3 .bt { color: var(--telop); }
+.blogo { border-color: #0e1630; }
+
+/* 入室ボタンは、タイトルのテロップより少しひかえめに（2つの間隔はそのまま） */
+.entry-btns { width: 86%; margin: 0 auto; }
+.bigbtn { min-height: 36vw; max-height: 170px; padding: 10px 6px; }
+@media (min-width: 480px) { .bigbtn { min-height: 150px; } }
+
+/* 2択は、1つの枠を2つで分け合う。選んでいる方は、塗りつぶし＋二重線 */
+.seg { display: flex; gap: 0; overflow: hidden; border: 2px solid var(--ink); border-radius: 14px; background: #fff; }
+.seg .btn { flex: 1; min-height: 48px; border: 0; border-radius: 0; background: #fff; color: var(--ink); }
+.seg .btn + .btn { border-left: 2px solid var(--ink); }
+.seg .btn.on { background: var(--ink); color: #fff; box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px rgba(255, 255, 255, .9); }
+
+/* 作成ポップアップの操作：キャンセルは目立たせず、作成を主役に */
+.dialog-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
+.dialog-actions .link { font-size: 15px; padding: 12px 8px; }
+.dialog-actions .go { min-width: 150px; min-height: 54px; font-size: 17px; }
+.dialog .stack h2 { margin: 6px 0 -2px; }
+/* 2択の外側の角は、全体の枠の丸みに沿わせる（間の境界線は直線のまま） */
+.seg .btn:first-child { border-radius: 12px 0 0 12px; }
+.seg .btn:last-child { border-radius: 0 12px 12px 0; }
+
+.dialog-actions { justify-content: center; }
+.dialog .sheet > p { padding-right: 40px; }
+.dialog-actions .btn.go.danger { background: #fff; }
