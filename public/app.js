@@ -528,7 +528,7 @@ function actionBar() {
       break;
     case 'vote':
       if (v.settings.chooserMode === 'one' ? v.me.isChooser : host) {
-        btn = `<button class="btn primary block" data-do="advance" ${v.pendingCount > 0 ? 'disabled' : ''}>結果を見る</button>`;
+        btn = `<button class="btn primary block" data-do="advance" ${v.pendingCount > 0 && v.settings.chooserMode === 'one' ? 'disabled' : ''}>結果を見る</button>`;
       }
       break;
     case 'result':

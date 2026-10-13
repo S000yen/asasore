@@ -514,7 +514,7 @@ export class Room {
       throw new RoomError('topic_not_confirmed', 'お題がまだ確定していません（出題者が確定するか、出題者を指名し直してください）');
     }
     const pending = this._pending();
-    if (this.phase === 'vote' && pending.count > 0) throw new RoomError('votes_pending', this.settings.chooserMode === 'one' ? '正解がまだ選ばれていません' : 'まだ投票していない人がいます');
+    if (this.phase === 'vote' && this.settings.chooserMode === 'one' && pending.count > 0) throw new RoomError('votes_pending', '正解がまだ選ばれていません');
     if (pending.count > 0 && !force) return { needConfirm: true, pending, phase: this.phase };
 
     if (this.phase === 'answer') {

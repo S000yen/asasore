@@ -473,17 +473,15 @@ test('全員投票モードでは、選ぶ操作はできない', () => {
   assert.equal(room.viewFor(A).chooserId, null);
 });
 
-test('全員投票モード：投票が揃うまで結果へ進めない（強制もできない）', () => {
+test('全員投票モード：未投票でも、主催者は確認のうえ早く進められる', () => {
   const { room, ids } = setup(3);
   const [A, B, C] = ids;
   toAnswerPhase(room, ids);
   room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
   room.advance(A); room.revealAll(A); room.advance(A);
   assert.equal(room.viewFor(A).pendingCount, 3);
-  assert.throws(() => room.advance(A, { force: true }), { code: 'votes_pending' });
-  voteAll(room, [A, B]);
-  assert.equal(room.viewFor(A).pendingCount, 1);
-  voteAll(room, [C]);
-  assert.equal(room.viewFor(A).pendingCount, 0);
-  assert.equal(room.advance(A).phase, 'result');
+  assert.equal(room.advance(A).needConfirm, true);
+  voteAll(room, [A]);
+  assert.equal(room.viewFor(A).pendingCount, 2);
+  assert.equal(room.advance(A, { force: true }).phase, 'result');
 });
