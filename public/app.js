@@ -325,24 +325,28 @@ function lobbyHtml() {
 `;
 }
 
-// ロビーの参加者：DVDの待ち受けのように、全員が跳ね回る。
-// 壁や他の人に当たるたびに色が反転。同じ色どうしはぶつかって跳ね返り、違う色どうしはすり抜ける。
-const sprites = new Map(); // playerId -> {x,y,vx,vy,c,w,h,cool:Map}
-function spriteOf(p, i) {
+// ロビーの参加者：床がトランポリンのように、それぞれが跳ね続ける。
+// 互いにはぶつからない。左右の壁では普通に跳ね返る。天井はないが、跳ねる高さの上限は枠の中に収まる。
+// 跳ね具合は名前の長さしだい（文字が少ないほど高く跳ねる）。
+const GRAVITY = 1500; // px/s²
+const sprites = new Map(); // playerId -> {x,y,vx,vy,w,h,sq}
+const bounceRatio = (name) => 1 - (Math.min(20, Math.max(1, [...name].length)) - 1) / 19 * 0.65; // 1文字=100%、20文字=35%
+function spriteOf(p) {
   let s = sprites.get(p.id);
   if (!s) {
-    const ang = Math.random() * Math.PI * 2, sp = 55 + Math.random() * 35;
-    s = { x: 20 + Math.random() * 120, y: 20 + Math.random() * 120, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp || 40, c: i % 2, w: 0, h: 0, cool: new Map() };
+    const sgn = Math.random() < 0.5 ? -1 : 1;
+    s = { x: 16 + Math.random() * 200, y: 200 - Math.random() * 120, vx: sgn * (28 + Math.random() * 40), vy: 0, w: 0, h: 0, sq: 0 };
     sprites.set(p.id, s);
   }
   return s;
 }
+const spriteTf = (s) => `translate(${s.x}px,${s.y}px) scale(${1 + 0.18 * s.sq},${1 - 0.28 * s.sq})`;
 function rosterHtml() {
   const players = view.players;
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
   const items = players.map((p, i) => {
-    const s = spriteOf(p, i);
-    return `<div class="sprite c${s.c}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" style="transform:translate(${s.x}px,${s.y}px)">${esc(p.name)}</div>`;
+    const s = spriteOf(p);
+    return `<div class="sprite c${i % 2}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
   }).join('');
   return `<div class="bfield roster" id="rosterField">${items}</div>`;
 }
@@ -353,39 +357,25 @@ function rosterLoop(t) {
   rosterAt = t;
   const f = document.getElementById('rosterField');
   if (!f || reduceMotion) return;
-  const els = [...f.querySelectorAll('.sprite')];
-  const list = els.map((el) => { const s = sprites.get(el.dataset.pid); if (s) { s.w = el.offsetWidth; s.h = el.offsetHeight; } return s && { el, s, id: el.dataset.pid }; }).filter(Boolean);
   const W = f.clientWidth, H = f.clientHeight;
-  const flip = (o) => { o.s.c = 1 - o.s.c; o.el.classList.toggle('c0', o.s.c === 0); o.el.classList.toggle('c1', o.s.c === 1); };
-  for (const o of list) {
-    const s = o.s;
-    s.x += s.vx * dt; s.y += s.vy * dt;
-    const maxX = Math.max(0, W - s.w), maxY = Math.max(0, H - s.h);
-    let hit = false;
-    if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx); hit = true; } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); hit = true; }
-    if (s.y < 0) { s.y = 0; s.vy = Math.abs(s.vy); hit = true; } else if (s.y > maxY) { s.y = maxY; s.vy = -Math.abs(s.vy); hit = true; }
-    if (hit) flip(o);
+  for (const el of f.querySelectorAll('.sprite')) {
+    const s = sprites.get(el.dataset.pid);
+    if (!s) continue;
+    s.w = el.offsetWidth; s.h = el.offsetHeight;
+    const m = s.w * 0.09; // 着地でぐにゃっと広がる分の余白
+    const floorY = Math.max(0, H - s.h), minX = m, maxX = Math.max(minX, W - s.w - m);
+    const apex = Math.max(20, (floorY - 6) * bounceRatio(el.dataset.name)); // 跳ねる高さ（枠の高さを超えない）
+    const launch = Math.sqrt(2 * GRAVITY * apex);
+    s.vy += GRAVITY * dt;
+    s.y += s.vy * dt;
+    s.x += s.vx * dt;
+    if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx); } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); }
+    if (s.y >= floorY) { s.y = floorY; s.vy = -launch; s.sq = 1; } // トランポリン：着地のたびに、同じ高さまで跳ね返す
+    const top = floorY - apex - 1;
+    if (s.y < top) { s.y = top; if (s.vy < 0) s.vy = 0; } // 計算の誤差で上限を超えない
+    s.sq = Math.max(0, s.sq - dt * 7); // 着地の一瞬だけ、ぐにゃっと縮む
+    el.style.transform = spriteTf(s);
   }
-  for (let i = 0; i < list.length; i++) {
-    for (let j = i + 1; j < list.length; j++) {
-      const A = list[i].s, B = list[j].s;
-      if (A.c !== B.c) continue; // 違う色はすり抜ける
-      const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
-      const oy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
-      if (ox <= 0 || oy <= 0) continue;
-      if (ox < oy) { // 横にぶつかった
-        const dir = A.x < B.x ? -1 : 1;
-        A.x += dir * ox / 2; B.x -= dir * ox / 2;
-        const va = A.vx; A.vx = Math.abs(B.vx) * dir || dir * 40; B.vx = -Math.abs(va) * dir || -dir * 40;
-      } else {
-        const dir = A.y < B.y ? -1 : 1;
-        A.y += dir * oy / 2; B.y -= dir * oy / 2;
-        const va = A.vy; A.vy = Math.abs(B.vy) * dir || dir * 40; B.vy = -Math.abs(va) * dir || -dir * 40;
-      }
-      flip(list[i]); flip(list[j]); // 当たったら、2人とも色が反転（すぐには再衝突しない）
-    }
-  }
-  for (const { el, s } of list) el.style.transform = `translate(${s.x}px,${s.y}px)`;
 }
 requestAnimationFrame(rosterLoop);
 

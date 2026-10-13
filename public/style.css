@@ -510,7 +510,7 @@ button.who:active { background: #fff; }
 
 /* ロビー：跳ね回る参加者 */
 .bfield.roster { height: 300px; background: #fff; }
-.sprite { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 3px solid var(--ink); border-radius: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; will-change: transform; }
+.sprite { position: absolute; left: 0; top: 0; transform-origin: 50% 100%; display: flex; align-items: center; gap: 6px; padding: 8px 14px; border: 3px solid var(--ink); border-radius: 8px; font-weight: 700; font-size: 15px; white-space: nowrap; will-change: transform; }
 .sprite.c0 { background: var(--ink); color: var(--telop); }
 .sprite.c1 { background: var(--telop); color: var(--ink); }
 .sprite .tag { font-size: 10px; font-weight: 700; opacity: .75; }
@@ -523,7 +523,7 @@ button.who:active { background: #fff; }
 /* 長い名前の対策：枠からはみ出さず、省略表示にする（跳ね回る札も、あの枠の中には収める） */
 .chip { max-width: 100%; min-width: 0; }
 .chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sprite { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 1.5; }
+.sprite { max-width: 84%; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 1.5; }
 .menu .btn, .menu button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .cell .by, .rec-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
