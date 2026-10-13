@@ -617,3 +617,12 @@ body[data-phase="vote"] .sheet { color: var(--ink); }
 body[data-phase="vote"] .sheet h2,
 body[data-phase="vote"] .sheet .hint,
 body[data-phase="vote"] .sheet .group-label { color: var(--ink-soft); }
+
+/* 見出しの右に並ぶ操作／プールの下の操作バー／押せない主ボタンをはっきりと */
+.lh-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.edit-toggle { background: #fff; color: var(--ink); border-color: var(--ink); }
+.edit-toggle.on { background: var(--telop); border-color: var(--telop); }
+.groupbar { margin-top: -4px; }
+.btn.primary[disabled] { opacity: 1; background: #aab6c6; border-color: #aab6c6; color: rgba(255, 255, 255, .85); cursor: default; }
+body[data-phase="vote"] .action .btn.primary[disabled] { background: rgba(255, 255, 255, .22); border-color: transparent; color: rgba(255, 255, 255, .6); }
+body[data-phase="vote"] .groupbar .btn[disabled] { opacity: .45; }

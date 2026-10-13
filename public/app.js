@@ -557,15 +557,21 @@ function poolHtml() {
   return `<section class="pool">${cells}</section>`;
 }
 
-// 主催者だけの、同じ回答をまとめる／ばらす操作。「まとめを編集」でオンにして、「編集を完了」で閉じるまで、ほかの操作はできない。
+// 主催者だけの、同じ回答をまとめる操作。見出しの右の同じボタンで、編集のオン／オフを切り替える。編集中は、ほかの操作はできない。
+function groupToggleHtml() {
+  if (!canEditGroups()) return '';
+  const on = isEditing();
+  return `<button class="btn small edit-toggle${on ? ' on' : ''}" data-do="${on ? 'editDone' : 'editOn'}">${on ? '編集を完了' : 'まとめを編集'}</button>`;
+}
+
+// 編集中だけ、プールの下に出る「まとめる」「ばらす」
 function groupBarHtml() {
   const v = view;
-  if (!canEditGroups()) return '';
-  if (!isEditing()) return '<div class="groupbar"><span class="gcount"></span><button class="btn small" data-do="editOn">まとめを編集</button></div>';
+  if (!isEditing()) return '';
   const picked = v.pool.filter((c) => ui.sel.has(c.answerId));
   const canGroup = picked.length >= 2;
   const canUngroup = picked.some((c) => c.group);
-  return `<div class="groupbar"><span class="gcount">${picked.length ? `${picked.length}件を選択中` : '同じ回答にチェック'}</span>
+  return `<div class="groupbar"><span class="gcount">${picked.length ? `${picked.length}件を選択中` : ''}</span>
     <button class="btn small" data-do="groupSel" ${canGroup ? '' : 'disabled'}>まとめる</button>
     <button class="btn small" data-do="ungroupSel" ${canUngroup ? '' : 'disabled'}>ばらす</button></div>`;
 }
@@ -575,8 +581,8 @@ function revealHtml() {
   const total = v.pool.length;
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 && !isEditing() ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
-    ${groupBarHtml()}${poolHtml()}
+    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2><span class="lh-actions">${host && v.unrevealedCount > 0 && !isEditing() ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}${groupToggleHtml()}</span></div>
+    ${poolHtml()}${groupBarHtml()}
 `;
 }
 
@@ -584,8 +590,8 @@ function voteHtml() {
   const v = view, one = v.settings.chooserMode === 'one';
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2></div>
-    ${groupBarHtml()}${poolHtml()}
+    <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2>${groupToggleHtml()}</div>
+    ${poolHtml()}${groupBarHtml()}
     ${one ? '' : progress('投票状況', v.players, (p) => p.voted)}`;
 }
 
@@ -610,7 +616,7 @@ function resultHtml() {
 
 function actionBar() {
   const v = view, host = v.me.isHost;
-  if (isEditing()) return '<div class="action"><div><button class="btn primary block" data-do="editDone">編集を完了</button></div></div>';
+  const lock = isEditing(); // まとめの編集中は、先へ進めない（ボタンを押せなくして、理由を添える）
   let btn = '', meta = '';
   switch (v.phase) {
     case 'lobby':
@@ -629,12 +635,14 @@ function actionBar() {
     case 'reveal':
       if (host) {
         const left = v.unrevealedCount;
-        btn = `<button class="btn primary block" data-do="advance" ${left > 0 ? 'disabled' : ''}>投票へ進む</button>`;
+        btn = `<button class="btn primary block" data-do="advance" ${left > 0 || lock ? 'disabled' : ''}>投票へ進む</button>`;
+        if (lock) meta = 'まとめの編集中は進めません';
       }
       break;
     case 'vote':
       if (v.settings.chooserMode === 'one' ? v.me.isChooser : host) {
-        btn = `<button class="btn primary block" data-do="advance" ${v.pendingCount > 0 && v.settings.chooserMode === 'one' ? 'disabled' : ''}>結果を見る</button>`;
+        btn = `<button class="btn primary block" data-do="advance" ${(v.pendingCount > 0 && v.settings.chooserMode === 'one') || lock ? 'disabled' : ''}>結果を見る</button>`;
+        if (lock) meta = 'まとめの編集中は進めません';
       }
       break;
     case 'result':
