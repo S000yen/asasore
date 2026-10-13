@@ -475,3 +475,6 @@ button.who:active { background: #fff; }
 .dialog-actions .link { font-size: 15px; padding: 12px 8px; }
 .dialog-actions .go { min-width: 150px; min-height: 54px; font-size: 17px; }
 .dialog .stack h2 { margin: 6px 0 -2px; }
+/* 2択の外側の角は、全体の枠の丸みに沿わせる（間の境界線は直線のまま） */
+.seg .btn:first-child { border-radius: 12px 0 0 12px; }
+.seg .btn:last-child { border-radius: 0 12px 12px 0; }
