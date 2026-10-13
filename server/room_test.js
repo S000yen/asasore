@@ -11,6 +11,16 @@ function setup(n = 3, opts = {}) {
   return { room, ids };
 }
 
+// まだ投票していない全員が、自分以外の回答に投票する（投票が揃わないと結果へ進めないため）
+function voteAll(room, ids) {
+  for (const id of ids) {
+    const v = room.viewFor(id);
+    if (v.myVote) continue;
+    const cell = v.pool.find((c) => c.canVote);
+    if (cell) room.vote(id, cell.answerId);
+  }
+}
+
 function toAnswerPhase(room, ids) {
   room.startRound(ids[0]);
   room.setTopic(ids[0], { hiragana: 'あ', theme: '面白いもの' });
@@ -102,7 +112,8 @@ test('匿名モードでは結果発表まで作者が出ない（主催者に�
 
   const pick = toC.find((a) => !a.mine).answerId;
   room.vote(C, pick);
-  room.advance(A, { force: true });
+  voteAll(room, ids);
+  room.advance(A);
   assert.ok(room.viewFor(C).result.tallies.every((t) => typeof t.author === 'string')); // 結果で明かす
 });
 
@@ -165,7 +176,8 @@ test('順番方式：参加順に回り、並べ替えと欠席の飛ばしに�
     room.advance(A, { force: true });
     room.revealAll(A);
     room.advance(A, { force: true });
-    room.advance(A, { force: true }); // → result
+    voteAll(room, ids);
+    room.advance(A); // → result
   };
   nextRound();
   nextRound();
@@ -219,7 +231,7 @@ test('出題者・選ぶ人は、次のラウンドにも引き継がれる（�
   room.advance(A); room.revealAll(A); room.advance(A);
   room.setChooser(A, C);
   room.choose(C, room.viewFor(C).pool.find((c) => c.text === 'a1').answerId);
-  room.advance(A);
+  room.advance(C);
   room.startRound(A);
   assert.equal(room.presenterId, B); // 出題者はそのまま
   room.setTopic(B, { hiragana: 'う', theme: '甘いもの' });
@@ -354,17 +366,19 @@ test('記録：結果が出たラウンドだけ、新しい順に見られる�
     const answers = room.viewFor(A).answers;
     const b = answers.find((a) => a.text === `${theme}のB`).answerId;
     room.vote(A, b); room.vote(C, b);
+    room.vote(B, answers.find((a) => a.text === `${theme}のA`).answerId); // Bは、Aに投票
   };
   play('一つ目');
   assert.deepEqual(room.viewFor(A).history, []); // まだ結果が出ていない（投票中）
-  room.advance(A, { force: true });
+  room.advance(A);
   let h = room.viewFor(C).history;
   assert.equal(h.length, 1);
   assert.equal(h[0].topic.theme, '一つ目');
-  assert.deepEqual(h[0].entries.map((e) => [e.author, e.votes, e.won]), [['B', 2, true], ['A', 0, false], ['C', 0, false]]);
+  assert.deepEqual(h[0].entries.map((e) => [e.author, e.votes, e.won]), [['B', 2, true], ['A', 1, false], ['C', 0, false]]);
   play('二つ目');
   assert.deepEqual(room.viewFor(B).history.map((x) => x.topic.theme), ['一つ目']); // 投票中は、前のラウンドまで
-  room.advance(A, { force: true });
+  voteAll(room, ids);
+  room.advance(A);
   h = room.viewFor(B).history;
   assert.deepEqual(h.map((x) => x.round), [2, 1]);
   assert.equal(h[0].entries[0].text, '二つ目のB');
@@ -436,14 +450,16 @@ test('「一人が決める」モード：選ぶ人を任せる／選ばない�
   room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
   room.advance(A); room.revealAll(A); room.advance(A);
   assert.throws(() => room.setChooser(C, B), { code: 'not_allowed' });
-  assert.equal(room.advance(A).needConfirm, true); // まだ選ばれていない
+  assert.throws(() => room.advance(A), { code: 'votes_pending' }); // まだ選ばれていない（結果へ進めない）
   room.setChooser(A, B);
   assert.equal(room.viewFor(C).chooserId, B);
   assert.throws(() => room.choose(A, room.viewFor(A).pool[0].answerId), { code: 'not_allowed' });
   const target = room.viewFor(B).pool.find((c) => c.text === 'a1').answerId;
   room.choose(B, target);
   room.setChooser(B, C); // 選ぶ人から、さらに任せられる
-  assert.equal(room.advance(A).needConfirm, false);
+  assert.throws(() => room.advance(A), { code: 'not_allowed' }); // 結果へ進めるのは選ぶ人だけ（主催者は不可）
+  room.advance(C); // 選択は、任された人に引き継がれる
+
   assert.deepEqual(room.viewFor(A).result.winners, [target]);
 });
 
@@ -455,4 +471,19 @@ test('全員投票モードでは、選ぶ操作はできない', () => {
   room.advance(A); room.revealAll(A); room.advance(A);
   assert.throws(() => room.choose(A, room.viewFor(A).pool[1].answerId), { code: 'wrong_mode' });
   assert.equal(room.viewFor(A).chooserId, null);
+});
+
+test('全員投票モード：投票が揃うまで結果へ進めない（強制もできない）', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  assert.equal(room.viewFor(A).pendingCount, 3);
+  assert.throws(() => room.advance(A, { force: true }), { code: 'votes_pending' });
+  voteAll(room, [A, B]);
+  assert.equal(room.viewFor(A).pendingCount, 1);
+  voteAll(room, [C]);
+  assert.equal(room.viewFor(A).pendingCount, 0);
+  assert.equal(room.advance(A).phase, 'result');
 });

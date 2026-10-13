@@ -499,7 +499,13 @@ export class Room {
 
   // 主催者が次へ進む。未完了の人がいると、force でない限り確認を返して止まる。
   advance(by, { force = false } = {}) {
-    requireHost(this, by);
+    if (this.phase === 'vote' && this.settings.chooserMode === 'one') {
+      // 「一人が決める」モードで結果へ進めるのは、選ぶ人だけ（主催者には出さない）
+      getActive(this, by);
+      if (by !== this.chooserId) throw new RoomError('not_allowed', '結果へ進めるのは、正解を選ぶ人です');
+    } else {
+      requireHost(this, by);
+    }
     if (this.phase === 'lobby' || this.phase === 'result') {
       this.startRound(by);
       return { needConfirm: false, pending: { count: 0, names: [] }, phase: this.phase };
@@ -508,6 +514,7 @@ export class Room {
       throw new RoomError('topic_not_confirmed', 'お題がまだ確定していません（出題者が確定するか、出題者を指名し直してください）');
     }
     const pending = this._pending();
+    if (this.phase === 'vote' && pending.count > 0) throw new RoomError('votes_pending', this.settings.chooserMode === 'one' ? '正解がまだ選ばれていません' : 'まだ投票していない人がいます');
     if (pending.count > 0 && !force) return { needConfirm: true, pending, phase: this.phase };
 
     if (this.phase === 'answer') {
@@ -667,6 +674,7 @@ export class Room {
         }
       }
     }
+    if (this.phase === 'vote') view.pendingCount = this._pending().count;
     if (this.phase === 'vote') view.myVote = this.settings.chooserMode === 'one' ? this.choice : (this.votes.get(pid) ?? null);
     if (this.phase === 'result' && this.result) {
       view.result = {
