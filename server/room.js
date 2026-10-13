@@ -465,6 +465,24 @@ export class Room {
     return { type: 'chooser_changed', by, to };
   }
 
+  // 主催者による強制回収：出題者（題決めの間）か、選ぶ人（投票の間）を、主催者に戻す。
+  reclaimRole(by) {
+    requireHost(this, by);
+    if (this.phase === 'topic' && this.presenterId !== this.hostId) {
+      const from = this.presenterId;
+      this.presenterId = this.hostId;
+      this.topic = null;
+      return { type: 'role_reclaimed', role: 'presenter', from, to: this.hostId };
+    }
+    if (this.phase === 'vote' && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId) {
+      const from = this.chooserId;
+      this.chooserId = this.hostId;
+      if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null;
+      return { type: 'role_reclaimed', role: 'chooser', from, to: this.hostId };
+    }
+    throw new RoomError('nothing_to_reclaim', '回収できる役割がありません');
+  }
+
   randomChooser(by) {
     getActive(this, by);
     this._need('vote');
@@ -609,7 +627,7 @@ export class Room {
       hostId: this.hostId,
       presenterId: this.presenterId,
       chooserId: this.phase === 'vote' ? this.chooserId : null,
-      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId, canAssignPresenter: this.phase === 'topic' && canAssignPresenter(this, pid), canAssignChooser: this.phase === 'vote' && canAssignChooser(this, pid) },
+      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId, canAssignPresenter: this.phase === 'topic' && canAssignPresenter(this, pid), canAssignChooser: this.phase === 'vote' && canAssignChooser(this, pid), canReclaim: isHost && ((this.phase === 'topic' && this.presenterId !== this.hostId) || (this.phase === 'vote' && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId)) },
       players: activePlayers(this).map((p) => ({
         id: p.id,
         name: p.name,

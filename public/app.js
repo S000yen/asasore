@@ -568,6 +568,7 @@ function sheetHtml() {
         ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
       </div>
       ${host ? `<div class="group"><p class="group-label">主催者</p>
+        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
         ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
         ${item('', 'data-do="sheet" data-kind="remove"', '参加者を外す')}
@@ -705,6 +706,12 @@ const handlers = {
   },
   pick(d) { confirmPick(d.kind, d.id); },
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
+  reclaim() {
+    ui.sheet = null;
+    const who = view.phase === 'vote' ? '正解を選ぶ人' : '出題者';
+    ui.modal = { body: `${who}の役割を、主催者に戻します。`, ok: '回収する', onOk: () => act('reclaimRole') };
+    render();
+  },
   randomChooser() { ui.sheet = null; act('randomChooser'); render(); },
   reportTopic() {
     const t = view.topic?.theme;

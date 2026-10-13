@@ -104,6 +104,8 @@ function describe(room, ev) {
         : `${name(ev.to)}さんが主催者になりました`;
     case 'presenter_changed':
       return `${name(ev.to)}さんが出題者になりました`;
+    case 'role_reclaimed':
+      return ev.role === 'chooser' ? `主催者が、選ぶ人の役割を戻しました` : `主催者が、出題者の役割を戻しました`;
     case 'chooser_changed':
       return `${name(ev.to)}さんが正解を選ぶ人になりました`;
     case 'chooser_returned_to_host':
@@ -186,6 +188,9 @@ function handleAct(entry, pid, msg, clientId) {
       break;
     case 'choose':
       room.choose(pid, msg.answerId);
+      break;
+    case 'reclaimRole':
+      ev = room.reclaimRole(pid);
       break;
     case 'randomChooser':
       ev = room.randomChooser(pid);

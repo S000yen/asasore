@@ -485,3 +485,24 @@ test('全員投票モード：未投票でも、主催者は確認のうえ早�
   assert.equal(room.viewFor(A).pendingCount, 2);
   assert.equal(room.advance(A, { force: true }).phase, 'result');
 });
+
+test('主催者は、任せた役割（出題者・選ぶ人）を強制的に回収できる', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  room.startRound(A);
+  assert.equal(room.viewFor(A).me.canReclaim, false);
+  room.setPresenter(A, B);
+  assert.equal(room.viewFor(A).me.canReclaim, true);
+  assert.throws(() => room.reclaimRole(C), { code: 'not_host' });
+  room.reclaimRole(A);
+  assert.equal(room.presenterId, A);
+  room.setTopic(A, { hiragana: 'い', theme: '怖いもの' }); room.confirmTopic(A);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  room.setChooser(A, B);
+  assert.throws(() => room.setChooser(A, C), { code: 'not_allowed' });
+  room.reclaimRole(A);
+  assert.equal(room.chooserId, A);
+  assert.throws(() => room.reclaimRole(A), { code: 'nothing_to_reclaim' });
+});
