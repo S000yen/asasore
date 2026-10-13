@@ -366,9 +366,9 @@ const spriteTf = (s) => `translate(${s.x}px,${s.y}px) scale(${1 + 0.18 * s.sq},$
 function rosterHtml() {
   const players = view.players;
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
-  const items = players.map((p, i) => {
+  const items = players.map((p) => {
     const s = spriteOf(p);
-    return `<div class="sprite c${i % 2}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
+    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
   }).join('');
   const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
