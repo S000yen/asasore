@@ -626,3 +626,5 @@ body[data-phase="vote"] .sheet .group-label { color: var(--ink-soft); }
 .btn.primary[disabled] { opacity: 1; background: #aab6c6; border-color: #aab6c6; color: rgba(255, 255, 255, .85); cursor: default; }
 body[data-phase="vote"] .action .btn.primary[disabled] { background: rgba(255, 255, 255, .22); border-color: transparent; color: rgba(255, 255, 255, .6); }
 body[data-phase="vote"] .groupbar .btn[disabled] { opacity: .45; }
+
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 70; pointer-events: none; }
