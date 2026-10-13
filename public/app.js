@@ -238,23 +238,26 @@ const telop = (t) => t
 
 function entryHtml() {
   if (endMessage) return endHtml();
-  const resume = session ? `<button class="btn center" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
+  const resume = session ? `<button class="link center" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
   const body = ui.joining
-    ? '<p class="hint">部屋に入っています…</p>'
+    ? '<p class="hint center-text">部屋に入っています…</p>'
     : `<div class="stack">
         <button class="btn primary block big" data-do="create">部屋をつくる</button>
         <button class="btn block big" data-do="openJoin">部屋に入る</button>
       </div>
-      ${resume}
-      <p class="hint">名前は「ユーザー1」のように自動でつきます。部屋に入ってから、メニューで変えられます。</p>`;
+      ${resume}`;
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード（4文字）</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
       <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
     </div></div>` : '';
   return `<div class="entry">
-    <h1 class="title">朝からそれ正解<small>頭文字のお題に、みんなで「正解」を出し合うゲームです。</small></h1>
+    <div class="entry-top">
+      <div class="telop hero"><div class="tile">あ</div><h1 class="hero-title">朝からそれ正解</h1></div>
+      <p class="lead">頭文字のお題に、みんなで「正解」を出し合うゲームです。</p>
+    </div>
     ${body}
-    ${ui.connected ? '' : '<p class="hint">サーバーにつなぎ直しています。</p>'}
+    ${ui.connected ? '' : '<p class="hint center-text">サーバーにつなぎ直しています。</p>'}
+    <p class="foot-hint">名前は「ユーザー1」のように自動でつきます。部屋に入ってから、メニューで変えられます。</p>
     ${dialog}${toastHtml()}
   </div>`;
 }
