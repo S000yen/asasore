@@ -425,3 +425,19 @@ button.who:active { background: #fff; }
 .answerbox textarea[readonly] { background: rgba(255, 255, 255, .55); border-color: var(--line); }
 .box-actions { position: absolute; right: 8px; bottom: 8px; }
 .box-actions .btn { min-height: 42px; min-width: 96px; }
+
+/* 入室の2ボタン：画面幅に比例して、アイコンも文字も大きさを変える（折り返さない） */
+.entry-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.bigbtn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vw;
+  min-height: 40vw; max-height: 190px; padding: 14px 8px;
+  border: 2px solid var(--ink); border-radius: 18px; background: #fff; color: var(--ink);
+  font-weight: 700; font-size: clamp(13px, 4.3vw, 20px); white-space: nowrap;
+}
+.bigbtn.primary { background: var(--ink); color: #fff; }
+.bigbtn svg { width: clamp(38px, 13vw, 64px); height: clamp(38px, 13vw, 64px); flex: none; }
+.bigbtn:active { transform: scale(.98); }
+@media (min-width: 480px) { .bigbtn { min-height: 160px; gap: 12px; } }
+
+.hero-title { font-size: clamp(20px, 6.9vw, 34px); white-space: nowrap; }
+@media (max-width: 479px) { .telop.hero .tile { width: clamp(56px, 19vw, 76px); height: clamp(56px, 19vw, 76px); font-size: clamp(36px, 12vw, 48px); } }
