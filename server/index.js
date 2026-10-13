@@ -5,7 +5,8 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomInt } from 'node:crypto';
+import { randomInt, createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
 import { RoomError } from './roles.js';
@@ -28,6 +29,15 @@ const MIME = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
+// 配信するファイルの版（中身から決める）。開きっぱなしの古い画面が、再接続のときに気づいて自分で読み込み直すために使う。
+const BUILD = (() => {
+  try {
+    const h = createHash('sha1');
+    for (const f of ['index.html', 'app.js', 'style.css']) h.update(readFileSync(path.join(PUBLIC_DIR, f)));
+    return h.digest('hex').slice(0, 10);
+  } catch { return 'dev'; }
+})();
+
 const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
 const topics = new TopicPool();
 topics.attach(createStoreFromEnv()); // DATABASE_URL があれば、題材と報告を保存・読み込み。無ければ、メモリだけ（起動は待たない）
@@ -48,7 +58,8 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(403).end('forbidden');
       return;
     }
-    const body = await readFile(file);
+    let body = await readFile(file);
+    if (path.basename(file) === 'index.html') body = Buffer.from(body.toString('utf8').replace('</head>', `  <meta name="build" content="${BUILD}">\n</head>`));
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream',
       'Cache-Control': 'no-cache',
@@ -232,6 +243,7 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
   const ctx = { code: null, pid: null, clientId: null }; // clientId: 端末ごとの匿名ID（同じ端末の報告を1回と数えるため）
+  send(ws, { t: 'hello', build: BUILD });
   ws.isAlive = true;
   ws.on('pong', () => {
     ws.isAlive = true;

@@ -80,7 +80,11 @@ function connect() {
   };
 }
 
-const sendRaw = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
+const sendRaw = (m) => {
+  if (ws && ws.readyState === 1) { ws.send(JSON.stringify(m)); return true; }
+  toast('接続しています。少し待ってから、もう一度お試しください');
+  return false;
+};
 const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
@@ -110,6 +114,11 @@ window.addEventListener('pageshow', wake);
 
 function onMessage(m) {
   switch (m.t) {
+    case 'hello': { // 開きっぱなしの古い画面は、新しい版が出ていたら、自分で読み込み直す
+      const mine = document.querySelector('meta[name=build]')?.content;
+      if (mine && m.build && mine !== m.build) location.reload();
+      return;
+    }
     case 'joined':
       session = { code: m.code, playerId: m.playerId };
       saveSession(session);
@@ -695,9 +704,9 @@ const handlers = {
   closeCreate() { ui.createOpen = false; render(); },
   newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
+    if (!sendRaw({ t: 'create', name: prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
     autoJoin = true;
     ui.createOpen = false;
-    sendRaw({ t: 'create', name: prefName, clientId, settings: { ...newRoom } });
   },
   openJoin() {
     ui.joinOpen = true;
