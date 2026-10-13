@@ -269,6 +269,7 @@ function entryHtml() {
     </div>
     ${body}
     ${ui.connected ? '' : '<p class="hint center-text">サーバーにつなぎ直しています。</p>'}
+    <p class="foot-hint">※ シークレットモードなどでの使用は推奨しません</p>
     ${dialog}${createDialog}${toastHtml()}
   </div>`;
 }
