@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>朝それ 管理</title>
+<style>
+  :root { --dawn: #dcebf2; --ink: #16213a; --soft: #55657f; --telop: #ffd83d; --stamp: #d93a2b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 20px 16px 60px; background: var(--dawn); color: var(--ink); font-family: system-ui, "Hiragino Sans", "BIZ UDPGothic", sans-serif; }
+  main { max-width: 480px; margin: 0 auto; display: grid; gap: 14px; }
+  h1 { margin: 0; font-size: 20px; }
+  h2 { margin: 0 0 6px; font-size: 14px; color: var(--soft); }
+  .card { padding: 14px; border-radius: 14px; background: #fff; }
+  input { width: 100%; padding: 12px; border: 2px solid rgba(85, 101, 127, .35); border-radius: 10px; font-size: 16px; }
+  button { padding: 12px 16px; border: 2px solid var(--ink); border-radius: 12px; background: var(--ink); color: #fff; font-size: 15px; font-weight: 700; }
+  button.ghost { background: #fff; color: var(--ink); }
+  button.danger { background: #fff; color: var(--stamp); border-color: var(--stamp); }
+  button.danger.armed { background: var(--stamp); color: #fff; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+  dt { color: var(--soft); } dd { margin: 0; font-weight: 700; text-align: right; }
+  ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; }
+  .msg { min-height: 20px; font-size: 14px; color: var(--soft); }
+  .msg.err { color: var(--stamp); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>朝それ 管理</h1>
+
+  <section class="card" id="login">
+    <h2>合言葉</h2>
+    <input id="token" type="password" autocomplete="off" placeholder="ADMIN_TOKEN">
+    <div class="row" style="margin-top:10px"><button id="open">ひらく</button></div>
+  </section>
+
+  <div id="panel" hidden style="display:grid;gap:14px">
+    <section class="card">
+      <h2>サーバー</h2>
+      <dl id="srv"></dl>
+    </section>
+    <section class="card">
+      <h2>題材</h2>
+      <dl id="tp"></dl>
+      <h2 style="margin-top:12px">報告の多い題材</h2>
+      <ol id="top"></ol>
+    </section>
+    <section class="card">
+      <h2>リセット</h2>
+      <div class="row">
+        <button class="danger" id="rFlags">報告を全部消す</button>
+        <button class="danger" id="rUser">手入力の題材を消す</button>
+      </div>
+      <p class="msg" style="margin:10px 0 0">消す前に、もう一度押すかどうかを聞きます。シードの題材は消えません。</p>
+    </section>
+    <div class="row">
+      <button class="ghost" id="reload">更新</button>
+      <button class="ghost" id="copy">状況をコピー</button>
+    </div>
+  </div>
+  <p class="msg" id="msg"></p>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let token = '', last = null;
+  const say = (t, err) => { $('msg').textContent = t; $('msg').className = 'msg' + (err ? ' err' : ''); };
+  async function api(path, body = {}) {
+    const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-token': token }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `エラー ${r.status}`);
+    return j;
+  }
+  const dl = (el, rows) => { el.replaceChildren(); for (const [k, v] of rows) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = k; dd.textContent = v; el.append(dt, dd); } };
+  async function refresh() {
+    const s = await api('/admin/api/status');
+    last = s;
+    dl($('srv'), [['版', s.build], ['稼働時間', `${Math.floor(s.uptimeSec / 3600)}時間${Math.floor(s.uptimeSec / 60) % 60}分`], ['いまの部屋', `${s.rooms.count} 部屋`], ['接続中の人', `${s.rooms.connectedPlayers} 人`]]);
+    const t = s.topics;
+    dl($('tp'), [['保存先(DB)', !t.dbConfigured ? '未設定（メモリのみ）' : t.dbReady ? 'つながっている' : 'つながっていない'], ['題材の合計', t.total], ['シード', t.seed], ['手入力', t.user], ['報告された題材', t.flaggedThemes], ['報告の合計', t.flags], [`出なくなった題材(${t.hideAt}端末以上)`, t.hidden]]);
+    $('top').replaceChildren(...t.top.map((x) => { const li = document.createElement('li'); li.textContent = `${x.theme}（${x.n}）`; return li; }));
+    if (!t.top.length) { const li = document.createElement('li'); li.textContent = 'まだありません'; $('top').append(li); }
+  }
+  async function enter() {
+    token = $('token').value;
+    try { await refresh(); $('login').hidden = true; $('panel').hidden = false; say(''); }
+    catch (e) { token = ''; say(e.message, true); }
+  }
+  $('open').onclick = enter;
+  $('token').onkeydown = (e) => { if (e.key === 'Enter') enter(); };
+  $('reload').onclick = () => refresh().then(() => say('更新しました')).catch((e) => say(e.message, true));
+  $('copy').onclick = async () => {
+    if (!last) return;
+    const t = last.topics;
+    const text = `版 ${last.build} / 部屋 ${last.rooms.count}・接続中 ${last.rooms.connectedPlayers}人 / DB ${t.dbConfigured ? (t.dbReady ? 'OK' : '未接続') : '未設定'} / 題材 ${t.total}（シード ${t.seed}・手入力 ${t.user}）/ 報告 ${t.flags}件（${t.flaggedThemes}題材・出なくなった ${t.hidden}）\n報告上位: ${t.top.map((x) => `${x.theme}(${x.n})`).join('、') || 'なし'}`;
+    try { await navigator.clipboard.writeText(text); say('コピーしました'); } catch { say(text); }
+  };
+  function armed(btn, label, what, doneText) {
+    let timer = null;
+    btn.onclick = async () => {
+      if (!btn.classList.contains('armed')) {
+        btn.classList.add('armed'); btn.textContent = 'もう一度押すと消えます';
+        timer = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = label; }, 5000);
+        return;
+      }
+      clearTimeout(timer); btn.classList.remove('armed'); btn.textContent = label;
+      try { const r = await api('/admin/api/reset', { what }); await refresh(); say(doneText(r)); } catch (e) { say(e.message, true); }
+    };
+  }
+  armed($('rFlags'), '報告を全部消す', 'flags', () => '報告を全部消しました');
+  armed($('rUser'), '手入力の題材を消す', 'userThemes', (r) => `手入力の題材を ${r.removed} 件消しました`);
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@
 //   全部戻す       : DELETE FROM theme_flags;
 //   題材を消す     : DELETE FROM theme_flags WHERE theme = '題材'; DELETE FROM themes WHERE theme = '題材';
 //                   （シードに残っている題材は、次の起動で、また入る。シードのファイルからも消すこと）
+// （同じことは、環境変数 ADMIN_TOKEN を設定したうえで /admin のページからもできる）
 // 書き換えたあとは、サーバーを再起動（Render の Manual Deploy → Restart）すると、反映される。
 
 import pg from 'pg';
@@ -58,6 +59,26 @@ export class PgStore {
 
   async addFlag(theme, clientId) {
     await this.pool.query('INSERT INTO theme_flags (theme, client_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [theme, clientId]);
+  }
+
+  // ---------- 管理（/admin から使う） ----------
+  async stats() {
+    const r = await this.pool.query(`SELECT
+      (SELECT count(*) FROM themes WHERE source = 'seed') AS seed,
+      (SELECT count(*) FROM themes WHERE source <> 'seed') AS usr,
+      (SELECT count(*) FROM theme_flags) AS flags`);
+    const row = r.rows[0];
+    return { seed: Number(row.seed), user: Number(row.usr), flags: Number(row.flags) };
+  }
+
+  async clearFlags() {
+    await this.pool.query('DELETE FROM theme_flags');
+  }
+
+  // 手入力の題材（と、その報告）を消す。シードの題材は残す。
+  async deleteUserThemes() {
+    await this.pool.query("DELETE FROM theme_flags WHERE theme IN (SELECT theme FROM themes WHERE source <> 'seed')");
+    await this.pool.query("DELETE FROM themes WHERE source <> 'seed'");
   }
 
   async close() {

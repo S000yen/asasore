@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
 import { RoomError } from './roles.js';
 import { TopicPool } from './topics.js';
+import { handleAdmin } from './admin.js';
 import { createStoreFromEnv } from './store.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -38,6 +39,7 @@ const BUILD = (() => {
   } catch { return 'dev'; }
 })();
 
+const startedAt = Date.now();
 const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
 const topics = new TopicPool();
 topics.attach(createStoreFromEnv()); // DATABASE_URL があれば、題材と報告を保存・読み込み。無ければ、メモリだけ（起動は待たない）
@@ -51,6 +53,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }).end('ok');
       return;
     }
+    if (await handleAdmin(req, res, url, { topics, rooms, build: BUILD, startedAt })) return;
     let rel = decodeURIComponent(url.pathname);
     if (rel.endsWith('/')) rel += 'index.html';
     const file = path.normalize(path.join(PUBLIC_DIR, rel));

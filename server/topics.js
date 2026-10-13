@@ -107,6 +107,37 @@ export class TopicPool {
     return { counted: true, flags: t.flaggers.size, hidden: t.flaggers.size >= this.hideAt };
   }
 
+  // ---------- 管理（/admin から使う） ----------
+
+  stats(top = 10) {
+    const seed = new Set(this.seed);
+    let user = 0, flagged = 0, hidden = 0, flags = 0;
+    const list = [];
+    for (const [theme, { flaggers }] of this.themes) {
+      if (!seed.has(theme)) user += 1;
+      if (flaggers.size > 0) { flagged += 1; flags += flaggers.size; list.push({ theme, n: flaggers.size }); }
+      if (flaggers.size >= this.hideAt) hidden += 1;
+    }
+    list.sort((a, b) => b.n - a.n);
+    return { total: this.themes.size, seed: this.themes.size - user, user, flaggedThemes: flagged, flags, hidden, hideAt: this.hideAt, top: list.slice(0, top), dbReady: this.ready, dbConfigured: Boolean(this.store) };
+  }
+
+  // 報告を全部消す（メモリと保存先の両方）
+  async resetFlags() {
+    for (const t of this.themes.values()) t.flaggers.clear();
+    if (this.store && this.ready) await this.store.clearFlags();
+  }
+
+  // 手入力の題材を全部消す（シードは残す。その題材への報告も消える）
+  async removeUserThemes() {
+    const seed = new Set(this.seed);
+    let removed = 0;
+    for (const theme of [...this.themes.keys()]) if (!seed.has(theme)) { this.themes.delete(theme); removed += 1; }
+    this.pairs.clear();
+    if (this.store && this.ready) await this.store.deleteUserThemes();
+    return removed;
+  }
+
   // ---------- 保存先とのやりとり ----------
 
   // 保存先をつなぎ、保存済みの内容を読み込む。つながらなければ、メモリだけで動き、あとで再試行する。
