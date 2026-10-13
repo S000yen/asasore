@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Ping /health
         env:
-          APP_URL: https://asaso.onrender.com
+          APP_URL: https://asasore-y7pb.onrender.com
         run: |
           # 休止中だと起動に1分ほどかかるので、待ち時間は長めにとる
           curl -fsS --max-time 90 --retry 2 --retry-delay 5 "${APP_URL%/}/health"
