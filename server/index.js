@@ -203,6 +203,12 @@ function handleAct(entry, pid, msg, clientId) {
     case 'choose':
       room.choose(pid, msg.answerId);
       break;
+    case 'group':
+      room.group(pid, msg.answerIds);
+      break;
+    case 'ungroup':
+      room.ungroup(pid, msg.answerIds);
+      break;
     case 'reclaimRole':
       ev = room.reclaimRole(pid);
       break;

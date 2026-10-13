@@ -506,3 +506,91 @@ test('主催者は、任せた役割（出題者・選ぶ人）を強制的に�
   assert.equal(room.chooserId, A);
   assert.throws(() => room.reclaimRole(A), { code: 'nothing_to_reclaim' });
 });
+
+// ---------- 同じ回答のグループ化 ----------
+
+function toReveal(room, ids, texts) {
+  toAnswerPhase(room, ids);
+  ids.forEach((id, i) => room.submitAnswer(id, texts[i]));
+  room.advance(ids[0]); // 開示へ
+  room.revealAll(ids[0]);
+}
+const ansOf = (room, id) => room.viewFor(id).pool.find((c) => c.mine).answerId;
+
+test('グループ化：主催者だけ、開示中にまとめられ、解除もできる', () => {
+  const { room, ids } = setup(4);
+  const [A, B, C, D] = ids;
+  toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま']);
+  const [a, b, c] = [A, B, C].map((id) => ansOf(room, id));
+  assert.throws(() => room.group(B, [a, b]), { code: 'not_host' });
+  assert.throws(() => room.group(A, [a]), { code: 'few' });
+  room.group(A, [a, b]);
+  const cells = room.viewFor(D).pool;
+  assert.equal(cells.find((x) => x.answerId === a).group, 1);
+  assert.equal(cells.find((x) => x.answerId === b).group, 1);
+  assert.equal(cells.find((x) => x.answerId === c).group, null);
+  assert.equal(room.viewFor(A).pool.every((x) => x.canGroup), true);
+  assert.equal(room.viewFor(B).pool.some((x) => x.canGroup), false);
+  room.group(A, [b, c]); // 重なれば1つに合わさる
+  assert.equal(room.viewFor(D).pool.filter((x) => x.group === 1).length, 3);
+  room.ungroup(A, [c]); // 外すと2つに戻る
+  assert.equal(room.viewFor(D).pool.filter((x) => x.group === 1).length, 2);
+  room.ungroup(A, [a]); // 残り1つになれば解消
+  assert.equal(room.viewFor(D).pool.filter((x) => x.group).length, 0);
+});
+
+test('グループ化：投票はまとまりで数え、勝つとまとまり全員が正解。自分を含むまとまりには投票できない', () => {
+  const { room, ids } = setup(5);
+  const [A, B, C, D, E] = ids;
+  toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま', 'とり']);
+  const [a, b, c, d] = [A, B, C, D].map((id) => ansOf(room, id));
+  room.advance(A); // 投票へ
+  room.group(A, [a, b]); // 投票中でもまとめられる
+  assert.throws(() => room.vote(A, b), { code: 'self_vote' }); // Aの回答を含むまとまり
+  assert.throws(() => room.vote(B, a), { code: 'self_vote' });
+  assert.equal(room.viewFor(A).pool.find((x) => x.answerId === b).canVote, false);
+  room.vote(C, a); room.vote(D, b); room.vote(E, a); // 同じまとまりへ3票
+  room.vote(A, c); room.vote(B, d);
+  room.advance(A);
+  const r = room.viewFor(A).result;
+  assert.deepEqual([...r.winners].sort(), [a, b].sort());
+  assert.equal(r.tie, false);
+  const ta = r.tallies.find((t) => t.answerId === a);
+  const tb = r.tallies.find((t) => t.answerId === b);
+  assert.equal(ta.votes, 3);
+  assert.equal(tb.votes, 3);
+  assert.equal(ta.group, 1);
+  assert.equal(room.viewFor(A).history[0].total, 5);
+});
+
+test('グループ化：投票のあとでまとめると、自分の回答を含む票は取り消される', () => {
+  const { room, ids } = setup(4);
+  const [A, B, C, D] = ids;
+  toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま']);
+  const [a, b, c] = [A, B, C].map((id) => ansOf(room, id));
+  room.advance(A);
+  room.vote(B, c); room.vote(C, b); // Cの投票先は B の回答
+  room.group(A, [b, c]); // Cは自分の回答を含むまとまりになる → Cの票は消える。Bの票も同じ理由で消える
+  assert.equal(room.viewFor(C).myVote, null);
+  assert.equal(room.viewFor(B).myVote, null);
+});
+
+test('グループ化：「一人が決める」モードでも、選ぶとまとまり全員が正解', () => {
+  const { room, ids } = setup(4);
+  const [A, B, C, D] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま']);
+  const [a, b, c] = [A, B, C].map((id) => ansOf(room, id));
+  room.advance(A); // 投票へ。選ぶ人は主催者A
+  room.group(A, [b, c]);
+  room.choose(A, b);
+  room.advance(A);
+  assert.deepEqual([...room.viewFor(A).result.winners].sort(), [b, c].sort());
+});
+
+test('グループ化：投票の前後以外ではできない', () => {
+  const { room, ids } = setup(3);
+  toAnswerPhase(room, ids);
+  room.submitAnswer(ids[0], 'a'); room.submitAnswer(ids[1], 'b');
+  assert.throws(() => room.group(ids[0], ['x', 'y']), { code: 'bad_phase' });
+});

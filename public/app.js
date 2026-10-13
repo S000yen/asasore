@@ -47,7 +47,7 @@ let pendingLink = (() => {
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
 const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all' }; // 部屋をつくるときの設定（作成の前に選ぶ）
-const ui = { createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
+const ui = { sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
@@ -210,10 +210,37 @@ function confirmFor(m) {
 
 // ---------- 描画 ----------
 
+// 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
+let lastPhaseKey = '';
+function trackPhase() {
+  const phase = view?.phase ?? '';
+  document.body.dataset.phase = phase;
+  const key = view ? `${view.code}:${view.round}:${phase}` : '';
+  if (key !== lastPhaseKey) {
+    ui.sel.clear(); // 段階が変わったら、まとめる対象の選択は解く
+    if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
+    lastPhaseKey = key;
+  }
+  if (view && ui.sel.size) { // 消えた・まだ開示されていない回答は、選択から外す
+    const ok = new Set(view.pool.filter((c) => c.revealed).map((c) => c.answerId));
+    for (const id of [...ui.sel]) if (!ok.has(id)) ui.sel.delete(id);
+  }
+}
+function startBand() {
+  document.querySelector('.startband')?.remove();
+  const el = document.createElement('div');
+  el.className = 'startband';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<span>${view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
 function render() {
   if (composing) { pendingRender = true; return; } // 日本語入力の変換中は作り直さない
   const focused = document.activeElement;
   const keep = focused && INPUT_IDS.includes(focused.id) ? focused : null;
+  trackPhase();
   $app.innerHTML = view ? roomHtml() : entryHtml();
   // 入力中の欄は、作り直さずそのまま戻す（キーボードやカーソルを保つため）
   if (keep) {
@@ -308,6 +335,7 @@ function roomHtml() {
       </div>
     </header>
     ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
+    ${v.phase === 'vote' ? `<div class="phaseband">${v.settings.chooserMode === 'one' ? '選択中' : '投票中'}</div>` : ''}
     <main class="main">${phaseHtml()}</main>
     ${actionBar()}
     ${sheetHtml()}${modalHtml()}${toastHtml()}`;
@@ -494,25 +522,45 @@ function answerHtml() {
 }
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
+// 主催者が「同じ回答」としてまとめたものには、同じ記号（A、B…）の札が付く。チェックは、まとめる／ばらす対象の選択。
+const groupMark = (n) => String.fromCharCode(64 + n);
 function poolHtml() {
   const v = view, anon = v.settings.identityMode === 'anonymous';
+  const myGroup = v.myVote ? v.pool.find((x) => x.answerId === v.myVote)?.group ?? null : null;
   const cells = v.pool.map((c) => {
     const me = c.mine ? ' mine' : '';
     if (!c.revealed) {
       const cls = `cell dark${me}`;
-      return c.canReveal
+      const inner = c.canReveal
         ? `<button class="${cls} tap" aria-label="開示" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}"></button>`
         : `<div class="${cls}"></div>`;
+      return `<div class="cw">${inner}</div>`;
     }
     const wide = [...c.text].length > 10 ? ' wide' : '';
-    const picked = v.myVote === c.answerId;
+    const picked = v.myVote === c.answerId || (myGroup !== null && c.group === myGroup);
     const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
-    const cls = `cell open${wide}${me}${picked ? ' picked' : ''}`;
-    return c.canVote
+    const cls = `cell open${me}${picked ? ' picked' : ''}`;
+    const main = c.canVote
       ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
       : `<div class="${cls}">${body}</div>`;
+    const on = ui.sel.has(c.answerId);
+    const check = c.canGroup ? `<button class="chk${on ? ' on' : ''}" role="checkbox" aria-checked="${on}" aria-label="まとめる対象に選ぶ" data-do="toggleSel" data-id="${esc(c.answerId)}"></button>` : '';
+    const tag = c.group ? `<span class="gtag" aria-label="同じ回答 ${groupMark(c.group)}">${groupMark(c.group)}</span>` : '';
+    return `<div class="cw${wide}${c.canGroup ? ' sel' : ''}">${main}${check}${tag}</div>`;
   }).join('');
   return `<section class="pool">${cells}</section>`;
+}
+
+// 主催者だけの、同じ回答をまとめる／ばらす操作
+function groupBarHtml() {
+  const v = view;
+  if (!v.me.isHost || v.pool.filter((c) => c.revealed).length < 2) return '';
+  const picked = v.pool.filter((c) => ui.sel.has(c.answerId));
+  const canGroup = picked.length >= 2;
+  const canUngroup = picked.some((c) => c.group);
+  return `<div class="groupbar"><span class="gcount">${picked.length ? `${picked.length}件を選択中` : '同じ回答にチェック'}</span>
+    <button class="btn small" data-do="groupSel" ${canGroup ? '' : 'disabled'}>まとめる</button>
+    <button class="btn small" data-do="ungroupSel" ${canUngroup ? '' : 'disabled'}>ばらす</button></div>`;
 }
 
 function revealHtml() {
@@ -521,7 +569,7 @@ function revealHtml() {
   return `
     ${telop(v.topic)}
     <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
-    ${poolHtml()}
+    ${groupBarHtml()}${poolHtml()}
 `;
 }
 
@@ -530,7 +578,7 @@ function voteHtml() {
   return `
     ${telop(v.topic)}
     <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2></div>
-    ${poolHtml()}
+    ${groupBarHtml()}${poolHtml()}
     ${one ? '' : progress('投票状況', v.players, (p) => p.voted)}`;
 }
 
@@ -542,6 +590,7 @@ function resultHtml() {
     const won = winners.has(t.answerId);
     const wide = won || [...t.text].length > 10 ? ' wide' : '';
     return `<div class="cell ${won ? 'win' : 'open'}${wide}">
+      ${t.group ? `<span class="gtag in" aria-label="同じ回答 ${groupMark(t.group)}">${groupMark(t.group)}</span>` : ''}
       ${won ? '<span class="stamp">正解</span>' : ''}
       <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${esc(t.author)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
   }).join('');
@@ -634,7 +683,18 @@ function sheetHtml() {
     const rank = [...tot].sort((x, y) => y[1].w - x[1].w || y[1].v - x[1].v);
     const maxW = Math.max(1, ...rank.map(([, t]) => t.w));
     const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row${t.w > 0 && t.w === maxW ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
-    inner = `<h3>これまでの記録</h3>${graph}<div class="history">${v.history.map((h) => `
+    // 得票率：全員の投票で決めたラウンドについて、その人の回答が受けた票 ÷ 投じられた票の合計
+    const rate = new Map();
+    let rounds = 0;
+    for (const h of v.history) {
+      if (h.mode === 'one' || !h.total) continue;
+      rounds += 1;
+      for (const e of h.entries) { const t = rate.get(e.author) ?? { got: 0, all: 0 }; t.got += e.votes; t.all += h.total; rate.set(e.author, t); }
+    }
+    const rr = [...rate].map(([n, t]) => [n, t.all ? (t.got / t.all) * 100 : 0]).sort((x, y) => y[1] - x[1]);
+    const maxR = Math.max(1, ...rr.map(([, p]) => p));
+    const rateGraph = rounds ? `<h3 class="sub">得票率</h3><div class="graph rate">${rr.map(([n, p]) => `<div class="g-row${p > 0 && p === maxR ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (p / maxR) * 100)}%"></i></span><span class="g-val">${Math.round(p)}<small>%</small></span></div>`).join('')}</div>` : '';
+    inner = `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
         ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
@@ -784,7 +844,23 @@ const handlers = {
   revealOwn() { act('revealOwn'); },
   revealSelected(d) { act('revealSelected', { answerId: d.id }); },
   revealAll() { act('revealAll'); },
+  toggleSel(d) { if (ui.sel.has(d.id)) ui.sel.delete(d.id); else ui.sel.add(d.id); render(); },
+  groupSel() {
+    const ids = view.pool.filter((c) => ui.sel.has(c.answerId)).map((c) => c.answerId);
+    if (ids.length < 2) return;
+    ui.sel.clear();
+    act('group', { answerIds: ids });
+  },
+  ungroupSel() {
+    const ids = view.pool.filter((c) => ui.sel.has(c.answerId) && c.group).map((c) => c.answerId);
+    if (!ids.length) return;
+    ui.sel.clear();
+    act('ungroup', { answerIds: ids });
+  },
   vote(d) {
+    const mine = view.pool.find((x) => x.answerId === view.myVote);
+    const tapped0 = view.pool.find((x) => x.answerId === d.id);
+    if (mine && tapped0 && mine.group && mine.group === tapped0.group) return; // 同じまとまりへは、投票済み
     if (view.myVote === d.id) return;
     const c = view.pool.find((x) => x.answerId === d.id);
     if (!c) return;

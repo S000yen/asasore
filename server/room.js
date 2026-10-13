@@ -69,6 +69,7 @@ export class Room {
     this.votes = new Map(); // voterId -> answerId
     this.chooserId = null; // chooserMode が 'one' のとき、正解を選ぶ人（投票フェーズの間だけ）
     this.choice = null; // その人が選んだ回答の id
+    this.groups = []; // 主催者が「同じ回答」としてまとめたもの。回答の id の配列の配列（2つ以上）。投票・選択は、まとまりを1つとして数える
     this.revealCounter = 0;
     this.result = null;
     this.poolOrder = [];
@@ -291,6 +292,7 @@ export class Room {
     this.round += 1;
     this.answers.clear();
     this.votes.clear();
+    this.groups = [];
     this.choice = null; // 選ぶ人（chooserId）は、次のラウンドにも引き継ぐ
     this.revealCounter = 0;
     this.result = null;
@@ -430,13 +432,60 @@ export class Room {
     for (const a of ordered) this._reveal(a);
   }
 
+  // ---------- 同じ回答のグループ化 ----------
+
+  // いま有効なまとまり：開示済みで、削除されていない回答だけ。2つ未満になったものは無いことにする。
+  _liveGroups() {
+    const ok = new Set(this._visibleAnswers().filter((a) => a.revealed).map((a) => a.id));
+    return this.groups.map((g) => g.filter((id) => ok.has(id))).filter((g) => g.length >= 2);
+  }
+
+  // 回答 id が属するまとまり（なければその1つだけ）
+  _unitOf(answerId) {
+    return this._liveGroups().find((g) => g.includes(answerId)) ?? [answerId];
+  }
+
+  _ownersOf(ids) {
+    return new Set(ids.map((id) => this._findAnswer(id)?.ownerId).filter(Boolean));
+  }
+
+  // 主催者が、開示済みの回答を1つにまとめる（すでにまとまっているものが混じれば、合わせて1つにする）
+  group(by, answerIds) {
+    requireHost(this, by);
+    this._need('reveal', 'vote');
+    const ids = [...new Set(answerIds ?? [])];
+    if (ids.length < 2) throw new RoomError('few', 'まとめるには、2つ以上選んでください');
+    for (const id of ids) {
+      const a = this._findAnswer(id);
+      if (!a || !a.revealed) throw new RoomError('no_answer', 'まとめられる回答が見つかりません（開示済みのものだけです）');
+    }
+    const live = this._liveGroups();
+    const merged = new Set(ids);
+    for (const g of live) if (g.some((id) => merged.has(id))) g.forEach((id) => merged.add(id));
+    const next = live.filter((g) => !g.some((id) => merged.has(id)));
+    next.push([...merged]);
+    this.groups = next;
+    // まとまりの中に自分の回答がある人の票・選択は、取り消す（自分の回答には投票できないため）
+    const owners = this._ownersOf([...merged]);
+    for (const [voter, aid] of [...this.votes]) if (merged.has(aid) && owners.has(voter)) this.votes.delete(voter);
+    if (this.choice && merged.has(this.choice) && owners.has(this.chooserId)) this.choice = null;
+  }
+
+  // 選んだ回答を、まとまりから外す（残りが1つになったまとまりは解消）
+  ungroup(by, answerIds) {
+    requireHost(this, by);
+    this._need('reveal', 'vote');
+    const drop = new Set(answerIds ?? []);
+    this.groups = this._liveGroups().map((g) => g.filter((id) => !drop.has(id))).filter((g) => g.length >= 2);
+  }
+
   vote(by, answerId) {
     getActive(this, by);
     this._need('vote');
     if (this.settings.chooserMode !== 'all') throw new RoomError('wrong_mode', 'このモードでは投票ではなく、選ぶ人が決めます');
     const a = this._findAnswer(answerId);
     if (!a || !a.revealed) throw new RoomError('no_answer', '投票できる回答が見つかりません');
-    if (a.ownerId === by) throw new RoomError('self_vote', '自分の回答には投票できません');
+    if (this._ownersOf(this._unitOf(answerId)).has(by)) throw new RoomError('self_vote', '自分の回答には投票できません');
     this.votes.set(by, answerId);
   }
 
@@ -448,7 +497,7 @@ export class Room {
     if (by !== this.chooserId) throw new RoomError('not_allowed', '正解を選べるのは、選ぶ人だけです');
     const a = this._findAnswer(answerId);
     if (!a || !a.revealed) throw new RoomError('no_answer', '選べる回答が見つかりません');
-    if (a.ownerId === by) throw new RoomError('self_vote', '自分の回答は選べません');
+    if (this._ownersOf(this._unitOf(answerId)).has(by)) throw new RoomError('self_vote', '自分の回答は選べません');
     this.choice = answerId;
   }
 
@@ -461,7 +510,7 @@ export class Room {
     const target = getActive(this, to);
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
     this.chooserId = to;
-    if (this.choice && this._findAnswer(this.choice)?.ownerId === to) this.choice = null; // 自分の回答は選べない
+    if (this.choice && this._ownersOf(this._unitOf(this.choice)).has(to)) this.choice = null; // 自分の回答は選べない
     return { type: 'chooser_changed', by, to };
   }
 
@@ -506,9 +555,9 @@ export class Room {
         const c = this.players.get(this.chooserId);
         return this.choice ? { count: 0, names: [] } : { count: 1, names: [c?.name ?? ''] };
       }
-      const shown = this._visibleAnswers().filter((a) => a.revealed);
+      const units = this._visibleAnswers().filter((a) => a.revealed).map((a) => this._ownersOf(this._unitOf(a.id)));
       const names = connectedPlayers(this)
-        .filter((p) => !this.votes.has(p.id) && shown.some((a) => a.ownerId !== p.id))
+        .filter((p) => !this.votes.has(p.id) && units.some((o) => !o.has(p.id)))
         .map((p) => p.name);
       return { count: names.length, names };
     }
@@ -553,27 +602,32 @@ export class Room {
 
   // 多数決。同票なら同票の回答すべてを winners にする（tie: true）。
   _tally() {
+    const shown = this._visibleAnswers().filter((a) => a.revealed);
+    const groups = this._liveGroups();
+    const groupNo = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? null : i + 1; };
+    const unitKey = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? id : `g${i}`; };
     if (this.settings.chooserMode === 'one') {
-      const tallies = this._visibleAnswers()
-        .filter((a) => a.revealed)
-        .map((a) => ({ answerId: a.id, ownerId: a.ownerId, votes: a.id === this.choice ? 1 : 0 }));
-      const winners = this.choice ? [this.choice] : [];
-      this.result = { tallies, winners, tie: false, mode: 'one' };
+      const win = this.choice ? new Set(this._unitOf(this.choice)) : new Set();
+      const tallies = shown.map((a) => ({ answerId: a.id, ownerId: a.ownerId, votes: win.has(a.id) ? 1 : 0, group: groupNo(a.id) }));
+      this.result = { tallies, winners: [...win], tie: false, mode: 'one', total: this.choice ? 1 : 0 };
       return;
     }
     const counts = new Map();
+    let total = 0;
     for (const [voterId, answerId] of this.votes) {
       const voter = this.players.get(voterId);
       const a = this._findAnswer(answerId);
       if (!voter || voter.removed || !a || !a.revealed) continue;
-      counts.set(answerId, (counts.get(answerId) ?? 0) + 1);
+      if (this._ownersOf(this._unitOf(answerId)).has(voterId)) continue;
+      const k = unitKey(answerId);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+      total += 1;
     }
-    const tallies = this._visibleAnswers()
-      .filter((a) => a.revealed)
-      .map((a) => ({ answerId: a.id, ownerId: a.ownerId, votes: counts.get(a.id) ?? 0 }));
+    const tallies = shown.map((a) => ({ answerId: a.id, ownerId: a.ownerId, votes: counts.get(unitKey(a.id)) ?? 0, group: groupNo(a.id) }));
     const max = Math.max(0, ...tallies.map((t) => t.votes));
     const winners = max > 0 ? tallies.filter((t) => t.votes === max).map((t) => t.answerId) : [];
-    this.result = { tallies, winners, tie: winners.length > 1 };
+    const winUnits = new Set(winners.map(unitKey));
+    this.result = { tallies, winners, tie: winUnits.size > 1, total };
   }
 
   // プールの並び。匿名：開示の開始時に決めたランダムな順。記名：参加順。
@@ -600,8 +654,9 @@ export class Room {
           round: h.round,
           topic: { hiragana: h.topic.hiragana, theme: h.topic.theme },
           mode: h.result.mode ?? 'all',
+          total: h.result.total ?? 0,
           entries: h.result.tallies
-            .map((t) => ({ text: byId.get(t.answerId)?.text ?? '', author: this.players.get(t.ownerId)?.name ?? '', votes: t.votes, won: winners.has(t.answerId) }))
+            .map((t) => ({ text: byId.get(t.answerId)?.text ?? '', author: this.players.get(t.ownerId)?.name ?? '', votes: t.votes, won: winners.has(t.answerId), group: t.group ?? null }))
             .sort((a, b) => b.votes - a.votes),
         };
       })
@@ -654,6 +709,8 @@ export class Room {
 
     if (['reveal', 'vote', 'result'].includes(this.phase)) {
       const visible = this._visibleAnswers();
+      const groups = this._liveGroups();
+      const groupNo = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? null : i + 1; };
       const toView = (a) => ({
         answerId: a.id,
         text: a.text,
@@ -673,9 +730,11 @@ export class Room {
         revealed: a.revealed,
         text: a.revealed ? a.text : null,
         mine: a.ownerId === pid && (a.revealed || !anonymous),
+        group: a.revealed ? groupNo(a.id) : null,
         author: anonymous ? null : nameOf(a.ownerId),
         canReveal: this.phase === 'reveal' && !a.revealed && (anonymous ? isHost : a.ownerId === pid),
-        canVote: this.phase === 'vote' && a.revealed && a.ownerId !== pid && (this.settings.chooserMode === 'all' || pid === this.chooserId),
+        canVote: this.phase === 'vote' && a.revealed && !this._ownersOf(this._unitOf(a.id)).has(pid) && (this.settings.chooserMode === 'all' || pid === this.chooserId),
+        canGroup: isHost && a.revealed && (this.phase === 'reveal' || this.phase === 'vote'),
       }));
       if (this.phase === 'reveal') {
         // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
@@ -701,7 +760,7 @@ export class Room {
         mode: this.result.mode ?? 'all',
         tallies: this.result.tallies.map((t) => {
           const a = this._findAnswer(t.answerId);
-          return { answerId: t.answerId, text: a?.text ?? '', votes: t.votes, author: nameOf(t.ownerId) };
+          return { answerId: t.answerId, text: a?.text ?? '', votes: t.votes, author: nameOf(t.ownerId), group: t.group ?? null };
         }),
       };
     }

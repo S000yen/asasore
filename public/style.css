@@ -552,3 +552,59 @@ button.who:active { background: #fff; }
 .bullet { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; margin: -13px 0 0 -13px; background: none; color: var(--telop); font-family: var(--display); font-style: normal; font-size: 24px; line-height: 1; pointer-events: none; will-change: transform; }
 
 .bfield.roster { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+/* ---------- 同じ回答のグループ化 ---------- */
+.cw { position: relative; display: grid; min-width: 0; }
+.cw.wide { grid-column: 1 / -1; }
+.cw > .cell { width: 100%; min-width: 0; }
+.cw:nth-child(even) > .cell.open { transform: rotate(-1deg); }
+.cw:nth-child(even) > .cell.dark { transform: rotate(1deg); }
+.cw:has(.chk.on) > .cell { outline: 3px dashed var(--telop); outline-offset: 3px; }
+.chk {
+  position: absolute; top: -10px; left: -8px; z-index: 2; width: 30px; height: 30px; padding: 0;
+  border: 3px solid var(--telop); border-radius: 7px; background: var(--ink);
+}
+.chk.on { background: var(--telop); }
+.chk.on::after { content: ''; position: absolute; left: 8px; top: 2px; width: 7px; height: 14px; border: solid var(--ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
+.gtag {
+  position: absolute; top: -12px; right: -6px; z-index: 2; display: grid; place-items: center; width: 30px; height: 30px;
+  border: 3px solid var(--ink); border-radius: 50%; background: var(--telop); color: var(--ink);
+  font-family: var(--display); font-size: 15px; line-height: 1; pointer-events: none;
+}
+.gtag.in { right: auto; left: -8px; }
+.groupbar { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.groupbar .gcount { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet h3.sub { margin: 2px 0 8px; font-size: 15px; color: var(--ink-soft); padding-right: 0; min-height: 0; }
+.graph.rate { margin-bottom: 18px; }
+
+/* ---------- 投票のはじまり：背景を紺に反転 ---------- */
+body { transition: background-color .4s ease; }
+body[data-phase="vote"] { background: var(--ink); color: #fff; }
+body[data-phase="vote"] .bar { background: var(--ink); }
+body[data-phase="vote"] .room { background: var(--telop); color: var(--ink); }
+body[data-phase="vote"] .room:active { background: #ffe680; }
+body[data-phase="vote"] .round,
+body[data-phase="vote"] h2,
+body[data-phase="vote"] .hint,
+body[data-phase="vote"] .groupbar .gcount,
+body[data-phase="vote"] .action .meta { color: rgba(255, 255, 255, .82); }
+body[data-phase="vote"] .action { background: linear-gradient(to top, var(--ink) 70%, transparent); }
+body[data-phase="vote"] .chk { border-color: var(--telop); }
+.phaseband {
+  margin: 0 -16px; padding: 3px 16px; background: var(--stamp); color: #fff; text-align: center;
+  font-family: var(--display); font-size: 13px; letter-spacing: .3em; line-height: 1.6;
+}
+.startband {
+  position: fixed; left: -8%; right: -8%; top: 36%; z-index: 60; padding: 16px 0; background: var(--stamp); color: #fff;
+  text-align: center; font-family: var(--display); font-size: 46px; line-height: 1.2; letter-spacing: .08em;
+  border-block: 4px solid #fff; transform: rotate(-4deg); pointer-events: none; animation: startband 1.6s ease-in-out both;
+}
+@keyframes startband {
+  0% { transform: translateX(-110%) rotate(-4deg); }
+  18% { transform: translateX(0) rotate(-4deg); }
+  78% { transform: translateX(0) rotate(-4deg); opacity: 1; }
+  100% { transform: translateX(110%) rotate(-4deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .startband { animation-duration: 1.6s; animation-name: startfade; } @keyframes startfade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } } }
+body[data-phase="vote"] .action .btn.primary { background: var(--telop); color: var(--ink); border-color: var(--telop); }
+body[data-phase="vote"] .groupbar .btn { background: #fff; color: var(--ink); border-color: #fff; }
