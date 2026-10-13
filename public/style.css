@@ -611,3 +611,9 @@ body[data-phase="vote"] .action .btn.primary { background: var(--telop); color: 
 body[data-phase="vote"] .groupbar .btn { background: #fff; color: var(--ink); border-color: #fff; }
 
 .bar.locked .room, .bar.locked .bar-right { pointer-events: none; opacity: .4; }
+
+/* 投票中の紺の背景でも、ポップアップやシート（白地）の文字は、濃い色のまま */
+body[data-phase="vote"] .sheet { color: var(--ink); }
+body[data-phase="vote"] .sheet h2,
+body[data-phase="vote"] .sheet .hint,
+body[data-phase="vote"] .sheet .group-label { color: var(--ink-soft); }
