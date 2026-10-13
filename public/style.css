@@ -43,6 +43,8 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .room-label { font-size: 13px; color: var(--ink-soft); }
 .code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
 .round { font-size: 14px; color: var(--ink-soft); margin-left: 4px; }
+.bar-right { display: flex; align-items: center; gap: 4px; }
+.textbtn { border: 0; background: none; min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--ink-soft); }
 .icon {
   width: 48px; height: 48px; border: 0; border-radius: 50%;
   background: var(--paper); font-size: 22px; line-height: 1;
@@ -90,6 +92,13 @@ textarea { resize: none; }
 .btn.block { width: 100%; }
 .btn.big { min-height: 58px; font-size: 18px; }
 .link { border: 0; background: none; padding: 8px 4px; color: var(--ink-soft); text-decoration: underline; }
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; }
+.links .link { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; min-height: 40px; }
+.roundbtn {
+  flex: none; width: 48px; height: 48px; display: grid; place-items: center;
+  border: 2px solid var(--line); border-radius: 50%; background: #fff; color: var(--ink);
+}
+.roundbtn:active { background: var(--dawn); }
 
 /* 下に固定する主操作 */
 .action {
@@ -188,3 +197,58 @@ button.answer:disabled { opacity: .55; }
   .btn { transition: transform .08s; }
   .btn:active { transform: scale(.98); }
 }
+
+/* ロビーのルール表示 */
+.rule {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  min-height: 48px; padding: 0 4px; border: 0; background: none; font-size: 14px; color: var(--ink-soft);
+}
+.rule.static { margin: 0; }
+.rule-body { flex: 1; color: var(--ink); font-weight: 700; }
+.chev { font-size: 22px; line-height: 1; }
+
+/* 回答・投票の進み具合（枠なし） */
+.progress { padding: 4px 2px; }
+.progress h2 { font-size: 13px; margin-bottom: 6px; }
+.progress .chip { background: rgba(255, 255, 255, .6); font-size: 13px; padding: 4px 10px; }
+
+/* 答えの長さによる文字の大きさ */
+.answer .text.lg { font-size: 24px; }
+.answer .text.md { font-size: 18px; }
+.answer .text.sm { font-size: 15px; font-weight: 400; }
+.answer .text.xl { display: block; font-size: 28px; line-height: 1.35; padding-top: 8px; }
+.answer.won { border-width: 3px; padding: 18px 16px; }
+.answer.lost { background: rgba(255, 255, 255, .7); padding: 10px 14px; }
+.answer.lost .text { font-size: 16px; }
+.answer.won .stamp { font-size: 30px; top: -16px; right: 10px; padding: 2px 14px; }
+.answer.won .votes { font-size: 26px; }
+
+/* メニュー：枠のない行を、まとまりごとに */
+.menu-list { display: grid; gap: 14px; }
+.group { display: grid; border-top: 1px solid var(--line); }
+.group:first-child { border-top: 0; }
+.group-label { margin: 10px 0 0; font-size: 12px; color: var(--ink-soft); }
+.item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 50px; padding: 0 2px; border: 0; background: none; text-align: left; font-size: 16px;
+}
+.item .side { color: var(--ink-soft); font-size: 14px; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item.danger { color: var(--stamp); }
+.item:active { background: var(--dawn); }
+
+/* 記録 */
+.history { display: grid; gap: 18px; }
+.rec-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--ink); }
+.rec-no { font-size: 13px; color: var(--ink-soft); flex: none; }
+.rec-topic { font-size: 15px; overflow-wrap: anywhere; }
+.rec-topic b { font-family: var(--display); font-weight: 400; font-size: 20px; margin-right: 2px; }
+.rec-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.rec-text { overflow-wrap: anywhere; }
+.rec-text small { display: block; color: var(--ink-soft); font-size: 12px; }
+.rec-votes { flex: none; white-space: nowrap; font-size: 14px; color: var(--ink-soft); }
+.rec-row.won .rec-text { font-weight: 700; }
+.rec-votes i { font-style: normal; color: var(--stamp); border: 2px solid var(--stamp); border-radius: 4px; padding: 0 5px; margin-right: 6px; font-weight: 700; font-size: 12px; }
+
+.row.hira { justify-content: flex-start; }
+.row.hira > .field { flex: none; }
+.main > .stack:has(.answer.won) { margin-top: 8px; }

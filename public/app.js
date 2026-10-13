@@ -214,6 +214,13 @@ function render() {
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
   `<span class="chip ${p.connected ? '' : 'away'}">${esc(p.name)}${p.isHost ? '<span class="tag">主催者</span>' : ''}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
 
+const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
+// 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
+const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? 'lg' : n <= 22 ? 'md' : 'sm'; };
+
+// 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
+const progress = (label, list, done) => `<div class="progress"><h2>${label} ${list.filter(done).length}/${list.length}</h2>${chips(list, done)}</div>`;
+
 const telop = (t) => t
   ? `<div class="telop"><div class="tile" id="tpTile">${esc(t.hiragana || '？')}</div><div class="telop-text"><span class="tiny">で始まる</span><strong id="tpTheme">${esc(t.theme)}</strong><span class="tiny">といえば？</span></div></div>`
   : '';
@@ -257,7 +264,10 @@ function roomHtml() {
   return `
     <header class="bar">
       <div class="room"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b>${v.round ? `<span class="round">第${v.round}問</span>` : ''}</div>
-      <button class="icon" data-do="openMenu" aria-label="メニュー">☰</button>
+      <div class="bar-right">
+        ${v.history.length ? '<button class="textbtn" data-do="sheet" data-kind="history">記録</button>' : ''}
+        <button class="icon" data-do="openMenu" aria-label="メニュー">☰</button>
+      </div>
     </header>
     ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
     <main class="main">${phaseHtml()}</main>
@@ -279,14 +289,14 @@ function phaseHtml() {
 
 function lobbyHtml() {
   const v = view, s = v.settings;
+  const rule = `${s.presenterMode === 'host' ? '毎回主催者が出題' : '参加順に出題'}・${s.identityMode === 'anonymous' ? '匿名' : '記名'}`;
   return `
     <section class="card"><h2>参加者 ${v.players.length}人</h2>${chips(v.players)}</section>
-    <section class="card stack">
-      <h2>ルール</h2>
-      <p class="hint" style="color:inherit">出題者：${s.presenterMode === 'host' ? '毎ラウンド主催者' : '参加順に交代'}<br>回答：${s.identityMode === 'anonymous' ? '匿名（結果発表で作者を明かします）' : '記名'}</p>
-      <button class="btn small" data-do="share">招待リンクを共有する</button>
-    </section>
-    ${v.me.isHost ? '<p class="hint">ルールは右上のメニューから変えられます。</p>' : '<p class="hint">主催者が始めるのを待っています。</p>'}`;
+    ${v.me.isHost
+      ? `<button class="rule" data-do="sheet" data-kind="settings"><span>ルール</span><span class="rule-body">${rule}</span><span class="chev">›</span></button>`
+      : `<p class="rule static"><span>ルール</span><span class="rule-body">${rule}</span></p>`}
+    <button class="btn" data-do="share">招待リンクを共有する</button>
+    ${v.me.isHost ? '' : '<p class="hint">主催者が始めるのを待っています。</p>'}`;
 }
 
 function topicHtml() {
@@ -300,23 +310,24 @@ function topicHtml() {
   return `
     ${telop({ hiragana: drafts.hiragana, theme: drafts.theme })}
     <section class="card stack">
-      <div class="row">
+      <div class="row hira">
         <label class="field"><span>ひらがな</span><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" value="${esc(drafts.hiragana)}"></label>
-        <button class="btn small" data-do="draw" data-part="hiragana">引き直す</button>
+        <button class="roundbtn" data-do="draw" data-part="hiragana" aria-label="ひらがなを引き直す">${ICON_REDRAW}</button>
       </div>
       <div class="row">
         <label class="field"><span>題材</span><input id="themeInput" type="text" data-draft="theme" maxlength="40" value="${esc(drafts.theme)}"></label>
-        <button class="btn small" data-do="draw" data-part="theme">引き直す</button>
+        <button class="roundbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button>
       </div>
-      <button class="btn block" data-do="draw" data-part="both">まとめて引き直す</button>
-      <button class="btn small block danger" data-do="reportTopic">この題材はおかしい（報告して引き直す）</button>
     </section>
-    <button class="btn" data-do="sheet" data-kind="presenter">出題者を他の人に任せる</button>`;
+    <div class="links">
+      <button class="link" data-do="draw" data-part="both">${ICON_REDRAW.replace('width="20" height="20"', 'width="15" height="15"')} 両方引き直す</button>
+      <button class="link" data-do="reportTopic">⚑ この題材を報告</button>
+      <button class="link" data-do="sheet" data-kind="presenter">出題者を任せる</button>
+    </div>`;
 }
 
 function answerHtml() {
   const v = view;
-  const answered = v.players.filter((p) => p.answered).length;
   return `
     ${telop(v.topic)}
     <section class="card stack">
@@ -324,7 +335,7 @@ function answerHtml() {
       <button class="btn primary block" data-do="submitAnswer">${v.myAnswer !== null ? '回答を更新する' : '回答する'}</button>
       ${v.myAnswer !== null ? '<button class="link" data-do="withdraw">回答を取り下げる</button>' : ''}
     </section>
-    <section class="card"><h2>回答状況 ${answered}/${v.players.length}</h2>${chips(v.players, (p) => p.answered)}</section>`;
+    ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
 
 function revealHtml() {
@@ -332,14 +343,14 @@ function revealHtml() {
   const pending = v.unrevealed.map((a) => {
     const canReveal = anon ? host : a.mine;
     const note = a.mine ? (anon && !host ? 'あなたの回答（主催者が開示します）' : 'あなたの回答') : '';
-    return `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text">${esc(a.text)}</span>${note ? `<span class="by">${note}</span>` : ''}${
+    return `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${note ? `<span class="by">${note}</span>` : ''}${
       canReveal ? `<button class="btn small" style="margin-top:10px" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(a.answerId)}">開示する</button>` : ''}</div>`;
   }).join('');
-  const shown = v.answers.map((a) => `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</div>`).join('');
+  const shown = v.answers.map((a) => `<div class="answer ${a.mine ? 'mine' : ''}"><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</div>`).join('');
   const hiddenOthers = v.unrevealedCount - v.unrevealed.length;
   return `
     ${telop(v.topic)}
-    ${v.unrevealedCount > 0 && host ? '<button class="btn" data-do="revealAll">残りを全員分開示する</button>' : ''}
+    ${v.unrevealedCount > 0 && host ? '<button class="btn small" data-do="revealAll">残りを全員分開示する</button>' : ''}
     ${pending ? `<section class="stack"><h2>まだ開示していない回答</h2>${pending}</section>` : ''}
     ${hiddenOthers > 0 && !host ? `<p class="hint">ほかに開示されていない回答が${hiddenOthers}件あります。</p>` : ''}
     <section class="stack"><h2>開示された回答 ${v.answers.length}件</h2>${shown || '<p class="hint">まだありません。</p>'}</section>`;
@@ -347,26 +358,27 @@ function revealHtml() {
 
 function voteHtml() {
   const v = view;
-  const voted = v.players.filter((p) => p.voted).length;
   const cards = v.answers.map((a) => {
     const picked = v.myVote === a.answerId;
     return `<button class="answer ${picked ? 'picked' : ''} ${a.mine ? 'mine' : ''}" data-do="vote" data-id="${esc(a.answerId)}" ${a.mine ? 'disabled' : ''}>
-      <span class="state">${a.mine ? 'あなたの回答' : picked ? '投票済み' : ''}</span><span class="text">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</button>`;
+      <span class="state">${a.mine ? 'あなたの回答' : picked ? '投票済み' : ''}</span><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</button>`;
   }).join('');
   return `
     ${telop(v.topic)}
     <section class="stack"><h2>いちばん「正解」だと思う回答に投票</h2>${cards}</section>
-    <section class="card"><h2>投票状況 ${voted}/${v.players.length}</h2>${chips(v.players, (p) => p.voted)}</section>`;
+    ${progress('投票状況', v.players, (p) => p.voted)}`;
 }
 
 function resultHtml() {
   const v = view, r = v.result;
   if (!r) return '<p class="hint">結果を集計しています。</p>';
   const winners = new Set(r.winners);
-  const rows = [...r.tallies].sort((a, b) => b.votes - a.votes).map((t) => `
-    <div class="answer ${winners.has(t.answerId) ? 'won' : ''}">
-      ${winners.has(t.answerId) ? '<span class="stamp">正解</span>' : ''}
-      <span class="text">${esc(t.text)}</span><span class="foot"><span class="by">${esc(t.author)}</span><span class="votes">${t.votes}票</span></span></div>`).join('');
+  const rows = [...r.tallies].sort((a, b) => b.votes - a.votes).map((t) => {
+    const won = winners.has(t.answerId);
+    return `<div class="answer ${won ? 'won' : 'lost'}">
+      ${won ? '<span class="stamp">正解</span>' : ''}
+      <span class="text ${won ? 'xl' : sizeOf(t.text)}">${esc(t.text)}</span><span class="foot"><span class="by">${esc(t.author)}</span><span class="votes">${t.votes}票</span></span></div>`;
+  }).join('');
   return `
     ${telop(v.topic)}
     ${r.tie ? '<p class="hint">同票でした。同票の回答がどれも正解です。</p>' : ''}
@@ -413,17 +425,29 @@ function sheetHtml() {
   const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${esc(p.name)}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
   let inner = '';
   if (k === 'menu') {
-    inner = `<h3>メニュー</h3><div class="menu">
-      <button class="btn" data-do="share">招待リンクを共有する</button>
-      <button class="btn" data-do="openRename">表示名を変える（いまは「${esc(v.me.name)}」）</button>
-      ${host ? `
-        <button class="btn" data-do="sheet" data-kind="settings">部屋設定</button>
-        <button class="btn" data-do="sheet" data-kind="transfer">主催者を譲渡する</button>
-        <button class="btn" data-do="sheet" data-kind="remove">参加者を外す</button>
-        ${v.removed.length ? '<button class="btn" data-do="sheet" data-kind="allow">再入室を許可する</button>' : ''}
-        <button class="btn danger" data-do="closeRoom">部屋を閉じる</button>` : ''}
-      <button class="btn danger" data-do="leave">退出する</button>
+    const item = (cls, attrs, label, side = '') => `<button class="item ${cls}" ${attrs}><span>${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
+    inner = `<div class="menu-list">
+      <div class="group">
+        ${item('', 'data-do="share"', '招待リンクを共有')}
+        ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
+      </div>
+      ${host ? `<div class="group"><p class="group-label">主催者</p>
+        ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
+        ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
+        ${item('', 'data-do="sheet" data-kind="remove"', '参加者を外す')}
+        ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
+      </div>` : ''}
+      <div class="group">
+        ${item('danger', 'data-do="leave"', '退出する')}
+        ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
+      </div>
     </div>`;
+  } else if (k === 'history') {
+    inner = `<h3>これまでの記録</h3><div class="history">${v.history.map((h) => `
+      <article class="rec">
+        <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
+        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${e.votes}票</span></div>`).join('')}
+      </article>`).join('')}</div>`;
   } else if (k === 'rename') {
     inner = `<h3>表示名を変える</h3><div class="stack">
       <label class="field"><span>この部屋のみんなに見える名前（20文字まで）</span><input id="renameInput" type="text" data-draft="rename" maxlength="20" autocomplete="off" value="${esc(drafts.rename)}"></label>

@@ -480,6 +480,28 @@ export class Room {
     this.result = { tallies, winners, tie: winners.length > 1 };
   }
 
+  // 結果が出たラウンドの記録（新しい順）。結果発表のあとなので、匿名モードでも作者を出してよい。
+  _historyView() {
+    const rounds = [...this.history];
+    if (this.phase === 'result' && this.result) { // いまのラウンドは、まだ保管前
+      rounds.push({ round: this.round, topic: this.topic, answers: [...this.answers.values()], result: this.result });
+    }
+    return rounds
+      .filter((h) => h.result && h.topic)
+      .map((h) => {
+        const byId = new Map(h.answers.map((a) => [a.id, a]));
+        const winners = new Set(h.result.winners);
+        return {
+          round: h.round,
+          topic: { hiragana: h.topic.hiragana, theme: h.topic.theme },
+          entries: h.result.tallies
+            .map((t) => ({ text: byId.get(t.answerId)?.text ?? '', author: this.players.get(t.ownerId)?.name ?? '', votes: t.votes, won: winners.has(t.answerId) }))
+            .sort((a, b) => b.votes - a.votes),
+        };
+      })
+      .reverse();
+  }
+
   // ---------- 閲覧者ごとの画面用データ ----------
 
   // 匿名モードでは、結果発表までは作者（名前・ownerId）を他人に渡さない。
@@ -519,6 +541,7 @@ export class Room {
       unrevealedCount: 0,
       myVote: null,
       result: null,
+      history: this._historyView(),
     };
 
     if (['reveal', 'vote', 'result'].includes(this.phase)) {

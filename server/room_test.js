@@ -281,3 +281,32 @@ test('部屋を閉じると、使った題材・報告の記録も破棄され�
   room.close(ids[0]);
   assert.equal(room.usedThemes.size + room.blockedThemes.size, 0);
 });
+
+test('記録：結果が出たラウンドだけ、新しい順に見られる。途中のラウンドは出ない', () => {
+  const { room, ids } = setup(3, { identityMode: 'anonymous' });
+  const [A, B, C] = ids;
+  room.setSettings(A, { identityMode: 'anonymous' });
+  const play = (theme) => {
+    room.startRound(A);
+    room.setTopic(A, { hiragana: 'あ', theme });
+    room.confirmTopic(A);
+    room.submitAnswer(A, `${theme}のA`); room.submitAnswer(B, `${theme}のB`); room.submitAnswer(C, `${theme}のC`);
+    room.advance(A); room.revealAll(A); room.advance(A);
+    const answers = room.viewFor(A).answers;
+    const b = answers.find((a) => a.text === `${theme}のB`).answerId;
+    room.vote(A, b); room.vote(C, b);
+  };
+  play('一つ目');
+  assert.deepEqual(room.viewFor(A).history, []); // まだ結果が出ていない（投票中）
+  room.advance(A, { force: true });
+  let h = room.viewFor(C).history;
+  assert.equal(h.length, 1);
+  assert.equal(h[0].topic.theme, '一つ目');
+  assert.deepEqual(h[0].entries.map((e) => [e.author, e.votes, e.won]), [['B', 2, true], ['A', 0, false], ['C', 0, false]]);
+  play('二つ目');
+  assert.deepEqual(room.viewFor(B).history.map((x) => x.topic.theme), ['一つ目']); // 投票中は、前のラウンドまで
+  room.advance(A, { force: true });
+  h = room.viewFor(B).history;
+  assert.deepEqual(h.map((x) => x.round), [2, 1]);
+  assert.equal(h[0].entries[0].text, '二つ目のB');
+});
