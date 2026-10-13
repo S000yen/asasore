@@ -316,8 +316,7 @@ function topicHtml() {
   if (!v.me.isPresenter) {
     const name = v.players.find((p) => p.id === v.presenterId)?.name ?? '出題者';
     return `
-      <div class="telop waiting"><div class="telop-text"><strong>${esc(name)}さんがお題を考えています</strong></div></div>
-      ${v.me.isHost ? '<button class="btn" data-do="sheet" data-kind="presenter">出題者を変える</button>' : ''}`;
+      <div class="telop waiting"><div class="telop-text"><strong>${esc(name)}さんがお題を考えています</strong></div></div>`;
   }
   // テロップそのものが入力欄（頭文字と題材を、直接書き換える）
   const rbtn = (part, label, cls = '') => `<button class="rbtn ${cls}" data-do="draw" data-part="${part}" aria-label="${label}を引き直す">${ICON_REDRAW}<small>${label}</small></button>`;
@@ -333,9 +332,7 @@ function topicHtml() {
       </div>
       <button class="rbtn trash" data-do="reportTopic" aria-label="この題材を報告して引き直す">${ICON_TRASH}<small>報告</small></button>
     </div>
-    <div class="topic-foot">
-      <button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button>
-    </div>`;
+`;
 }
 
 function answerHtml() {
@@ -445,7 +442,15 @@ function actionBar() {
       if (host) btn = '<button class="btn primary block" data-do="advance">次のラウンドへ</button>';
       break;
   }
-  return btn ? `<div class="action"><div>${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
+  // 題決めの間は、出題者を丸いチップで出す。出題者本人と主催者は、タップして変更できる。
+  let who = '';
+  if (v.phase === 'topic') {
+    const name = v.players.find((p) => p.id === v.presenterId)?.name ?? '';
+    const can = v.me.isHost || v.me.isPresenter;
+    const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">出題者 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
+    who = can ? `<button class="who" data-do="sheet" data-kind="presenter">${inner}</button>` : `<div class="who">${inner}</div>`;
+  }
+  return btn || who ? `<div class="action"><div>${who}${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
 }
 
 // ---------- シート（メニューなど）と確認 ----------
