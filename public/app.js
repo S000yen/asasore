@@ -329,7 +329,7 @@ function lobbyHtml() {
 // 互いにはぶつからない。左右の壁では普通に跳ね返る。天井はないが、跳ねる高さの上限は枠の中に収まる。
 // 跳ね具合は名前の長さしだい（文字が少ないほど高く跳ねる）。
 const GRAVITY = 1500; // px/s²
-const sprites = new Map(); // playerId -> {x,y,vx,tvx(ゆるやかな目標速度),vy,w,h,sq}
+const sprites = new Map(); // playerId -> {x,y,vx,vy,w,h,sq}
 const bullets = []; // 横から時々飛んでくる弾 {id,x,y,dir,ox}
 let bulletId = 0, nextShot = 1.5;
 const BULLET_SPEED = 520; // px/s
@@ -340,8 +340,7 @@ function spriteOf(p) {
   let s = sprites.get(p.id);
   if (!s) {
     const sgn = Math.random() < 0.5 ? -1 : 1;
-    s = { x: 16 + Math.random() * 200, y: 200 - Math.random() * 120, vx: sgn * (28 + Math.random() * 40), tvx: 0, drift: 0, vy: 0, w: 0, h: 0, sq: 0 };
-    s.tvx = s.vx;
+    s = { x: 16 + Math.random() * 200, y: 200 - Math.random() * 120, vx: sgn * (28 + Math.random() * 40), vy: 0, w: 0, h: 0, sq: 0 };
     sprites.set(p.id, s);
   }
   return s;
@@ -381,7 +380,6 @@ function rosterLoop(t) {
       if (b.x >= s.x && b.x <= s.x + s.w && b.y >= s.y && b.y <= s.y + s.h) {
         const d = Math.min(1, Math.abs(b.x - b.ox) / Math.max(1, W));
         s.vx = b.dir * hitSpeed(d); // 向きも速さも、弾しだい
-        s.tvx = b.dir * (20 + Math.random() * 30);
         s.sq = Math.max(s.sq, 0.7);
         b.hit = true;
       }
@@ -403,10 +401,9 @@ function rosterLoop(t) {
     const launch = Math.sqrt(2 * GRAVITY * apex);
     s.vy += GRAVITY * dt;
     s.y += s.vy * dt;
-    // 横方向：ふだんはゆるやかに動き、弾で速くなっても、だんだんその速さに落ち着く（ランダム性は弾だけ）
-    s.vx += (s.tvx - s.vx) * Math.min(1, dt * 0.9);
+    // 横方向：速さは次の弾が当たるまで変わらない（壁で跳ね返っても、そのまま）
     s.x += s.vx * dt;
-    if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx); s.tvx = Math.abs(s.tvx); } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); s.tvx = -Math.abs(s.tvx); }
+    if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx); } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); }
     if (s.y >= floorY) { s.y = floorY; s.vy = -launch; s.sq = 1; } // トランポリン：着地のたびに、同じ高さまで跳ね返す
     const top = floorY - apex - 1;
     if (s.y < top) { s.y = top; if (s.vy < 0) s.vy = 0; } // 計算の誤差で上限を超えない
