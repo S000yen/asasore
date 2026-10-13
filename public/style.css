@@ -358,7 +358,7 @@ input.tile-input:focus, textarea.telop.edit textarea.theme-edit:focus { border-c
 /* ポップアップの右上の × */
 .sheet { position: relative; }
 .x {
-  position: absolute; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; border-radius: 50%;
+  position: absolute; z-index: 2; top: 8px; right: 8px; width: 44px; height: 44px; border: 0; border-radius: 50%;
   background: none; color: var(--ink-soft); font-size: 28px; line-height: 1;
 }
 .x:active { background: var(--dawn); }
@@ -487,7 +487,7 @@ button.who:active { background: #fff; }
 .dialog-actions .btn.go.danger { background: #fff; }
 
 /* 投票の確認：選んだ回答を大きく */
-.vquote { margin: 34px 0 0; padding: 14px 12px; border-radius: 8px; background: var(--ink); color: var(--telop); font-family: var(--display); font-size: 20px; line-height: 1.4; text-align: center; overflow-wrap: anywhere; transform: rotate(-1.5deg); }
+.dialog p.vquote { margin: 38px 0 16px; padding: 14px 12px; border-radius: 8px; background: var(--ink); color: var(--telop); font-family: var(--display); font-size: 20px; line-height: 1.4; text-align: center; overflow-wrap: anywhere; transform: rotate(-1.5deg); }
 
 /* 結果：プールと同じ見た目。正解は黄色い帯、ほかは紺地に黄色い文字 */
 .cell.win { background: var(--telop); color: var(--ink); transform: rotate(-1.5deg); box-shadow: 3px 3px 0 var(--ink); padding: 26px 14px 12px; }
