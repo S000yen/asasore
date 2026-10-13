@@ -173,8 +173,9 @@ test('順番方式：参加順に回り、並べ替えと欠席の飛ばしに�
   nextRound();
   assert.deepEqual(seq, [A, B, C, A]); // 初回は参加順の先頭から、以後は順に一巡する
 
+  room.join(null, 'D', 2000); // 3人以上いないと始められないので、1人欠けても足りるよう追加
   room.setSettings(A, { order: [C, B, A] });
-  assert.deepEqual(room.settings.order, [C, B, A]);
+  assert.deepEqual(room.settings.order.slice(0, 3), [C, B, A]);
   room.disconnect(C);
   room.startRound(A);
   assert.notEqual(room.presenterId, C);
@@ -272,7 +273,7 @@ test('報告：出題者だけが、いまのお題を報告でき、その部�
 });
 
 test('報告は、お題を選んでいる間だけできる', () => {
-  const { room, ids } = setup(2);
+  const { room, ids } = setup(3);
   const [A] = ids;
   assert.throws(() => room.reportTopic(A, 'x'), { code: 'bad_phase' }); // ロビー
   toAnswerPhase(room, ids);
@@ -280,7 +281,7 @@ test('報告は、お題を選んでいる間だけできる', () => {
 });
 
 test('部屋を閉じると、使った題材・報告の記録も破棄される', () => {
-  const { room, ids } = setup(2);
+  const { room, ids } = setup(3);
   toAnswerPhase(room, ids);
   room.close(ids[0]);
   assert.equal(room.usedThemes.size + room.blockedThemes.size, 0);
@@ -328,4 +329,22 @@ test('記名モードの開示：本人だけが自分の枠を開け、他の�
   room.revealOwn(B);
   assert.equal(room.viewFor(C).answers.length, 1);
   assert.equal(room.viewFor(B).unrevealed.length, 2);
+});
+
+test('3人未満では始められない', () => {
+  const { room, ids } = setup(2);
+  assert.throws(() => room.startRound(ids[0]), { code: 'min_players' });
+  room.join(null, 'C', 3000);
+  assert.doesNotThrow(() => room.startRound(ids[0]));
+});
+
+test('回答は取り下げるまで書き換えられない', () => {
+  const { room, ids } = setup(3);
+  toAnswerPhase(room, ids);
+  room.submitAnswer(ids[1], 'こたえ');
+  assert.throws(() => room.submitAnswer(ids[1], 'べつの'), { code: 'already_answered' });
+  assert.equal(room.viewFor(ids[1]).myAnswer, 'こたえ');
+  room.withdrawAnswer(ids[1]);
+  room.submitAnswer(ids[1], 'べつの');
+  assert.equal(room.viewFor(ids[1]).myAnswer, 'べつの');
 });

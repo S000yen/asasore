@@ -36,6 +36,8 @@ function shuffle(list) {
   return a;
 }
 
+export const MIN_PLAYERS = 3; // 投票は自分以外の回答に入れるので、3人以上で遊べる
+
 export class Room {
   constructor(code, { graceMs = DEFAULT_GRACE_MS, emptyCloseMs = DEFAULT_EMPTY_CLOSE_MS, now = Date.now() } = {}) {
     this.code = code;
@@ -263,7 +265,7 @@ export class Room {
   startRound(by) {
     requireHost(this, by);
     this._need('lobby', 'result');
-    if (connectedPlayers(this).length < 2) throw new RoomError('min_players', '2人以上いないと始められません');
+    if (connectedPlayers(this).length < MIN_PLAYERS) throw new RoomError('min_players', `${MIN_PLAYERS}人以上いないと始められません（投票で、自分以外の回答を選ぶため）`);
     this._archiveRound();
     this.round += 1;
     this.answers.clear();
@@ -346,12 +348,8 @@ export class Room {
     this._need('answer');
     const t = String(text ?? '').trim();
     if (!t || t.length > MAX_ANSWER_LEN) throw new RoomError('bad_answer', `回答は1〜${MAX_ANSWER_LEN}文字で入力してください`);
-    const existing = this.answers.get(by);
-    if (existing) {
-      existing.text = t;
-    } else {
-      this.answers.set(by, { id: randomUUID(), ownerId: by, text: t, revealed: false, revealSeq: 0 });
-    }
+    if (this.answers.has(by)) throw new RoomError('already_answered', '回答済みです。書き換えるには、先に取り下げてください');
+    this.answers.set(by, { id: randomUUID(), ownerId: by, text: t, revealed: false, revealSeq: 0 });
   }
 
   withdrawAnswer(by) {

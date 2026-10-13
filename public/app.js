@@ -237,7 +237,7 @@ const telop = (t) => t
 
 function entryHtml() {
   if (endMessage) return endHtml();
-  const resume = session ? `<button class="btn block" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
+  const resume = session ? `<button class="btn center" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
   const body = ui.joining
     ? '<p class="hint">部屋に入っています…</p>'
     : `<div class="stack">
@@ -246,9 +246,9 @@ function entryHtml() {
       </div>
       ${resume}
       <p class="hint">名前は「ユーザー1」のように自動でつきます。部屋に入ってから、メニューで変えられます。</p>`;
-  const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet">
+  const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード（4文字）</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
-      <div class="btns" style="margin-top:16px"><button class="btn" data-do="closeJoin">やめる</button><button class="btn primary" data-do="join">入る</button></div>
+      <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
     </div></div>` : '';
   return `<div class="entry">
     <h1 class="title">朝からそれ正解<small>頭文字のお題に、みんなで「正解」を出し合うゲームです。</small></h1>
@@ -263,8 +263,8 @@ function endHtml() {
   return `<div class="end">
     <h1 class="title" style="font-size:28px">${esc(e.title)}</h1>
     ${e.body ? `<p class="hint">${esc(e.body)}</p>` : ''}
-    ${e.retry && session ? '<button class="btn primary block" data-do="resume">もう一度入る</button>' : ''}
-    <button class="btn block" data-do="backToEntry">入室画面に戻る</button>
+    ${e.retry && session ? '<button class="btn primary center" data-do="resume">もう一度入る</button>' : ''}
+    <button class="btn center" data-do="backToEntry">入室画面に戻る</button>
     ${toastHtml()}
   </div>`;
 }
@@ -306,7 +306,7 @@ function lobbyHtml() {
     ${v.me.isHost
       ? `<button class="rule" data-do="sheet" data-kind="settings"><span>ルール</span><span class="rule-body">${rule}</span><span class="chev">›</span></button>`
       : `<p class="rule static"><span>ルール</span><span class="rule-body">${rule}</span></p>`}
-    <button class="btn" data-do="share">招待リンクを共有する</button>
+    <button class="btn small center" data-do="share">招待リンクを共有する</button>
     ${v.me.isHost ? '' : '<p class="hint">主催者が始めるのを待っています。</p>'}`;
 }
 
@@ -327,11 +327,11 @@ function topicHtml() {
     </div>
     <div class="redraws">
       <div class="rgroup">${rbtn('hiragana', '頭文字')}${rbtn('theme', '題材')}</div>
-      ${rbtn('both', '両方', 'solo')}
+      ${rbtn('both', '両方')}
     </div>
     <div class="topic-foot">
-      <button class="link" data-do="reportTopic">⚑ この題材を報告</button>
       <button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button>
+      <button class="link" data-do="reportTopic">⚑ この題材を報告</button>
     </div>`;
 }
 
@@ -340,9 +340,10 @@ function answerHtml() {
   return `
     ${telop(v.topic)}
     <section class="card stack">
-      <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力">${esc(drafts.answer)}</textarea>
-      <button class="btn primary block" data-do="submitAnswer">${v.myAnswer !== null ? '回答を更新する' : '回答する'}</button>
-      ${v.myAnswer !== null ? '<button class="link" data-do="withdraw">回答を取り下げる</button>' : ''}
+      <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
+      <div class="submit-row">
+        ${v.myAnswer !== null ? '<span class="hint">回答しました。書き換えるには、取り下げてください。</span><button class="btn small" data-do="withdraw">取り下げる</button>' : '<span></span><button class="btn primary" data-do="submitAnswer">回答する</button>'}
+      </div>
     </section>
     ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
@@ -405,8 +406,8 @@ function actionBar() {
     case 'lobby':
       if (host) {
         const n = v.players.filter((p) => p.connected).length;
-        btn = `<button class="btn primary block" data-do="advance" ${n < 2 ? 'disabled' : ''}>はじめる</button>`;
-        meta = n < 2 ? '2人以上で始められます' : '';
+        btn = `<button class="btn primary block" data-do="advance" ${n < 3 ? 'disabled' : ''}>はじめる</button>`;
+        meta = n < 3 ? '3人以上で始められます' : '';
       }
       break;
     case 'topic':
@@ -442,7 +443,7 @@ function sheetHtml() {
   let inner = '';
   if (k === 'menu') {
     const item = (cls, attrs, label, side = '') => `<button class="item ${cls}" ${attrs}><span>${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
-    inner = `<div class="menu-list">
+    inner = `<h3>メニュー</h3><div class="menu-list">
       <div class="group">
         ${item('', 'data-do="share"', '招待リンクを共有')}
         ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
@@ -492,7 +493,7 @@ function sheetHtml() {
       ${host ? '<button class="btn" data-do="randomPresenter">ランダムで指名する</button>' : ''}
       ${pick('presenter', v.players.filter((p) => p.connected && p.id !== v.presenterId))}</div>`;
   }
-  return `<div class="scrim" data-do="scrim"><div class="sheet">${inner}<button class="link" style="margin-top:8px" data-do="closeSheet">閉じる</button></div></div>`;
+  return `<div class="scrim" data-do="scrim"><div class="sheet"><button class="x" data-do="closeSheet" aria-label="閉じる">×</button>${inner}</div></div>`;
 }
 
 function modalHtml() {
