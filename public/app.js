@@ -291,7 +291,7 @@ function roomHtml() {
       <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b></button>
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
-        ${v.history.length ? '<button class="textbtn" data-do="sheet" data-kind="history">記録</button>' : ''}
+        ${v.history.length ? '<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>' : ''}
         <button class="icon" data-do="openMenu" aria-label="メニュー">☰</button>
       </div>
     </header>
@@ -507,7 +507,12 @@ function sheetHtml() {
       </div>
     </div>`;
   } else if (k === 'history') {
-    inner = `<h3>これまでの記録</h3><div class="history">${v.history.map((h) => `
+    const tot = new Map();
+    for (const h of v.history) for (const e of h.entries) { const t = tot.get(e.author) ?? { w: 0, v: 0 }; t.w += e.won ? 1 : 0; t.v += e.votes; tot.set(e.author, t); }
+    const rank = [...tot].sort((x, y) => y[1].w - x[1].w || y[1].v - x[1].v);
+    const maxW = Math.max(1, ...rank.map(([, t]) => t.w));
+    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
+    inner = `<h3>これまでの記録</h3>${graph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
         ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${e.votes}票</span></div>`).join('')}

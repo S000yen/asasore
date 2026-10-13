@@ -48,8 +48,8 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .bar-right { display: flex; align-items: center; gap: 4px; }
 .textbtn { border: 0; background: none; min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--ink-soft); }
 .icon {
-  width: 48px; height: 48px; border: 0; border-radius: 50%;
-  background: var(--paper); font-size: 22px; line-height: 1;
+  display: grid; place-items: center; width: 44px; height: 48px; border: 0; padding: 0;
+  background: none; color: var(--ink); font-size: 26px; line-height: 1;
 }
 .conn {
   margin: 0 0 8px; padding: 8px 12px; border-radius: var(--radius);
@@ -487,3 +487,12 @@ button.who:active { background: #fff; }
 .cell .txt { flex: 1; }
 .cell .vcount { flex: none; font-family: 'Dela Gothic One', sans-serif; font-size: 22px; line-height: 1; }
 .cell .vcount small { font-size: 11px; margin-left: 1px; }
+
+/* 記録の一番上：正解数のグラフ */
+.graph { display: grid; gap: 8px; margin: 4px 0 18px; padding: 12px; border-radius: 12px; background: rgba(85, 101, 127, .1); }
+.g-row { display: grid; grid-template-columns: minmax(48px, 28%) 1fr auto; align-items: center; gap: 8px; }
+.g-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-track { height: 18px; border-radius: 4px; background: rgba(255, 255, 255, .8); overflow: hidden; }
+.g-track i { display: block; height: 100%; border-radius: 4px; background: var(--ink); }
+.g-val { font-family: var(--display); font-size: 16px; min-width: 3.2em; text-align: right; }
+.g-val small { font-family: inherit; font-size: 10px; margin-left: 2px; }
