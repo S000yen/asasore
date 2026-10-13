@@ -14,8 +14,7 @@ const seedPath = new URL('../seed/themes.json', import.meta.url);
 
 // 使いやすい頭文字だけを、重み付きで抽選する（ん・を・小書き文字・濁音・半濁音は除く）。
 const ROWS = ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの', 'はひふへほ', 'まみむめも', 'やゆよ', 'らりるれろ', 'わ'];
-const RARE = new Set(['ぬ', 'ね', 'む', 'め', 'ゆ', 'へ', 'え', 'ろ', 'れ', 'わ']); // 答えが出にくい文字は半分の重み
-const HIRAGANA_WEIGHTS = ROWS.join('').split('').map((ch) => [ch, RARE.has(ch) ? 1 : 2]);
+const HIRAGANA_WEIGHTS = ROWS.join('').split('').map((ch) => [ch, 1]); // 答えにくい文字も含め、どれも同じ確率
 
 const DEFAULT_HIDE_AT = 5; // 報告した端末がこの数に達したら、ランダムでは出さない
 const RETRY_MS = 30_000;

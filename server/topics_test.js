@@ -77,6 +77,15 @@ test('ひらがなの抽選に、濁音・半濁音・小書き・ん・を は�
   for (const ch of 'がぱんをっゃぁ') assert.equal(seen.has(ch), false);
 });
 
+test('ひらがなは、どの文字も同じ確率で出る（答えにくい文字も減らさない）', () => {
+  const pool = new TopicPool(['A']);
+  const n = 44000, count = {};
+  for (let i = 0; i < n; i++) { const c = pool.randomHiragana(); count[c] = (count[c] ?? 0) + 1; }
+  for (const ch of 'ぬねむめゆへえろれわ') {
+    assert.ok(count[ch] > 800 && count[ch] < 1200, `${ch}: ${count[ch]}`); // 期待値は1000
+  }
+});
+
 test('手入力で確定した新しい題材は、一覧に加わり、保存される', async () => {
   const saved = { themes: [], flags: [] };
   const store = {
