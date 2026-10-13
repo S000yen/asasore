@@ -314,14 +314,10 @@ function phaseHtml() {
 }
 
 function lobbyHtml() {
-  const v = view, s = v.settings;
-  const rule = `${s.presenterMode === 'host' ? '毎回主催者が出題' : '参加順に出題'}・${s.identityMode === 'anonymous' ? '匿名' : '記名'}`;
+  const v = view;
   return `
     <div class="listhead"><h2>参加者 ${v.players.length}人</h2></div>
     ${rosterHtml()}
-    ${v.me.isHost
-      ? `<button class="rule" data-do="sheet" data-kind="settings"><span>ルール</span><span class="rule-body">${rule}</span><span class="chev">›</span></button>`
-      : `<p class="rule static"><span>ルール</span><span class="rule-body">${rule}</span></p>`}
     <button class="btn small center" data-do="share">招待リンクを共有する</button>
 `;
 }
