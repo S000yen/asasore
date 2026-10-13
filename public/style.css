@@ -548,5 +548,7 @@ button.who:active { background: #fff; }
 .rec, .rec-row, .graph { min-width: 0; max-width: 100%; }
 .sheet > * { min-width: 0; max-width: 100%; }
 
-/* ロビーの弾：黄色い「あ」の文字だけ */
+/* ロビーの弾：黄色い「A」（てっぺんが進む向き） */
 .bullet { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; margin: -13px 0 0 -13px; background: none; color: var(--telop); font-family: var(--display); font-style: normal; font-size: 24px; line-height: 1; pointer-events: none; will-change: transform; }
+
+.bfield.roster { touch-action: manipulation; user-select: none; -webkit-user-select: none; }

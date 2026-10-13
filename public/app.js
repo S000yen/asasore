@@ -331,7 +331,24 @@ function lobbyHtml() {
 const GRAVITY = 1500; // px/s²
 const sprites = new Map(); // playerId -> {x,y,vx,vy,w,h,sq}
 const bullets = []; // 横から時々飛んでくる弾 {id,x,y,dir,ox}
-let bulletId = 0, nextShot = 1.5;
+let bulletId = 0, nextShot = 1.5, lastTapAt = -1e9;
+const bulletTf = (b) => `translate(${b.x}px,${b.y}px) rotate(${b.dir > 0 ? 90 : -90}deg)`; // 「A」のてっぺんが、飛んでいく向き
+// 弾を1発打つ（発射数の制限はなし）
+function fireBullet(f, dir, y) {
+  const W = f.clientWidth;
+  const b = { id: ++bulletId, dir, x: dir > 0 ? 0 : W, y, ox: dir > 0 ? 0 : W, hit: false };
+  bullets.push(b);
+  f.insertAdjacentHTML('beforeend', `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`);
+}
+// タップすると、近い方の壁から、同じ高さに弾が飛ぶ（ひとり何発でも）
+document.addEventListener('pointerdown', (e) => {
+  const f = e.target.closest?.('#rosterField');
+  if (!f) return;
+  const r = f.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  lastTapAt = performance.now();
+  fireBullet(f, x < r.width / 2 ? 1 : -1, y);
+});
 const BULLET_SPEED = 520; // px/s
 // 弾が当たったときの横速度：発射地点に近いほど猛烈に速く、遠いほどゆっくり（向きは弾の進行方向）
 const hitSpeed = (dist01) => 15 + 985 * Math.pow(1 - dist01, 2.2);
@@ -353,7 +370,7 @@ function rosterHtml() {
     const s = spriteOf(p);
     return `<div class="sprite c${i % 2}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
   }).join('');
-  const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)">あ</i>`).join('');
+  const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
 }
 let rosterAt = 0;
@@ -365,12 +382,11 @@ function rosterLoop(t) {
   if (!f || reduceMotion) return;
   const W = f.clientWidth, H = f.clientHeight;
   // 弾：ときどき（少なめに）、左右どちらかの端から横に飛んでくる
-  nextShot -= dt;
+  // 自動の弾：だれかがタップして10秒たつまでは、お休み（10秒なにもなければ、また飛ぶ）
+  if (performance.now() - lastTapAt > 10000) nextShot -= dt;
   if (nextShot <= 0) {
     nextShot = 2.5 + Math.random() * 3.5; // 30秒に7発ほど
-    const dir = Math.random() < 0.5 ? 1 : -1, b = { id: ++bulletId, dir, x: dir > 0 ? 0 : W, y: 10 + Math.random() * Math.max(1, H - 20), ox: dir > 0 ? 0 : W, hit: false };
-    bullets.push(b);
-    f.insertAdjacentHTML('beforeend', `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)">あ</i>`);
+    fireBullet(f, Math.random() < 0.5 ? 1 : -1, 10 + Math.random() * Math.max(1, H - 20));
   }
   for (const b of bullets) {
     b.x += b.dir * BULLET_SPEED * dt;
@@ -389,7 +405,7 @@ function rosterLoop(t) {
     const b = bullets[i];
     const gone = b.hit || b.x < -10 || b.x > W + 10;
     const el = f.querySelector(`.bullet[data-b="${b.id}"]`);
-    if (gone) { el?.remove(); bullets.splice(i, 1); } else if (el) el.style.transform = `translate(${b.x}px,${b.y}px)`;
+    if (gone) { el?.remove(); bullets.splice(i, 1); } else if (el) el.style.transform = bulletTf(b);
   }
   for (const el of f.querySelectorAll('.sprite')) {
     const s = sprites.get(el.dataset.pid);
