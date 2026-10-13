@@ -527,8 +527,8 @@ button.who:active { background: #fff; }
 .menu .btn, .menu button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .cell .by, .rec-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* 勝者を目立たせる：赤い枠と光彩（明滅はさせない）＋少し大きく */
-.cell.win { transform: rotate(-1.5deg) scale(1.03); border-width: 4px; box-shadow: 0 0 14px 3px rgba(217,58,43,.55); z-index: 1; }
+/* 勝者は、枠が赤くなるだけ */
+.cell.win { transform: rotate(-1.5deg); }
 .cell.win .text.lg { font-size: 24px; }
 /* グラフの一番大きい棒（トップ）は赤 */
 .g-row.top .g-track i { background: var(--stamp); }

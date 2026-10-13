@@ -55,6 +55,7 @@ export class Room {
     this.settings = {
       presenterMode: 'host', // 'host'（毎ラウンド主催者に戻す）| 'rotation'（順番に回す）
       identityMode: 'named', // 'named' | 'anonymous'
+      chooserMode: 'all', // 正解を選ぶ人：'all'（全員の投票）| 'one'（一人が決める）
       order: [], // 順番方式の並び（デフォルトは参加順）
     };
 
@@ -64,6 +65,8 @@ export class Room {
     this.topicConfirmed = false;
     this.answers = new Map(); // ownerId -> { id, ownerId, text, revealed, revealSeq }
     this.votes = new Map(); // voterId -> answerId
+    this.chooserId = null; // chooserMode が 'one' のとき、正解を選ぶ人（投票フェーズの間だけ）
+    this.choice = null; // その人が選んだ回答の id
     this.revealCounter = 0;
     this.result = null;
     this.poolOrder = [];
@@ -192,6 +195,7 @@ export class Room {
   _setHost(newId, how) {
     const from = this.hostId;
     if (this.presenterId === from) this.presenterId = newId; // 出題者を兼ねていたら権限も移る
+    if (this.chooserId === from) this.chooserId = newId; // 正解を選ぶ人を兼ねていたら、それも移る
     this.hostId = newId;
     return { type: 'host_transferred', from, to: newId, how };
   }
@@ -210,6 +214,7 @@ export class Room {
     if (target === by) throw new RoomError('bad_target', '自分自身は削除できません');
     const p = getActive(this, target);
     p.removed = true;
+    if (this.chooserId === target) { this.chooserId = this.hostId; if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null; }
     if (this.presenterId === target) {
       this.presenterId = this.hostId;
       this.topic = null;
@@ -239,6 +244,10 @@ export class Room {
     if (patch.identityMode !== undefined) {
       if (!['named', 'anonymous'].includes(patch.identityMode)) throw new RoomError('bad_setting', '記名／匿名の指定が正しくありません');
       this.settings.identityMode = patch.identityMode;
+    }
+    if (patch.chooserMode !== undefined) {
+      if (!['all', 'one'].includes(patch.chooserMode)) throw new RoomError('bad_setting', '正解を選ぶ人の指定が正しくありません');
+      this.settings.chooserMode = patch.chooserMode;
     }
     if (patch.order !== undefined) {
       this.settings.order = normalizeOrder(this, patch.order);
@@ -271,6 +280,8 @@ export class Room {
     this.round += 1;
     this.answers.clear();
     this.votes.clear();
+    this.chooserId = null;
+    this.choice = null;
     this.revealCounter = 0;
     this.result = null;
     this.topic = null;
@@ -410,10 +421,36 @@ export class Room {
   vote(by, answerId) {
     getActive(this, by);
     this._need('vote');
+    if (this.settings.chooserMode !== 'all') throw new RoomError('wrong_mode', 'このモードでは投票ではなく、選ぶ人が決めます');
     const a = this._findAnswer(answerId);
     if (!a || !a.revealed) throw new RoomError('no_answer', '投票できる回答が見つかりません');
     if (a.ownerId === by) throw new RoomError('self_vote', '自分の回答には投票できません');
     this.votes.set(by, answerId);
+  }
+
+  // 「一人が決める」モード：選ぶ人が正解を選ぶ（結果を出すまで、何度でも選び直せる）
+  choose(by, answerId) {
+    getActive(this, by);
+    this._need('vote');
+    if (this.settings.chooserMode !== 'one') throw new RoomError('wrong_mode', 'このモードでは、全員の投票で決めます');
+    if (by !== this.chooserId) throw new RoomError('not_allowed', '正解を選べるのは、選ぶ人だけです');
+    const a = this._findAnswer(answerId);
+    if (!a || !a.revealed) throw new RoomError('no_answer', '選べる回答が見つかりません');
+    if (a.ownerId === by) throw new RoomError('self_vote', '自分の回答は選べません');
+    this.choice = answerId;
+  }
+
+  // 選ぶ人を、ほかの人に任せる（主催者か、いまの選ぶ人）
+  setChooser(by, to) {
+    getActive(this, by);
+    this._need('vote');
+    if (this.settings.chooserMode !== 'one') throw new RoomError('wrong_mode', 'このモードでは、選ぶ人はいません');
+    if (by !== this.hostId && by !== this.chooserId) throw new RoomError('not_allowed', '選ぶ人を任せられるのは、主催者か選ぶ人です');
+    const target = getActive(this, to);
+    if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
+    this.chooserId = to;
+    if (this.choice && this._findAnswer(this.choice)?.ownerId === to) this.choice = null; // 自分の回答は選べない
+    return { type: 'chooser_changed', by, to };
   }
 
   // 未回答・未開示・未投票の確認。匿名の漏れを避けるため、開示フェーズでは件数だけ返す。
@@ -427,6 +464,10 @@ export class Room {
       return { count, names: null };
     }
     if (this.phase === 'vote') {
+      if (this.settings.chooserMode === 'one') {
+        const c = this.players.get(this.chooserId);
+        return this.choice ? { count: 0, names: [] } : { count: 1, names: [c?.name ?? ''] };
+      }
       const shown = this._visibleAnswers().filter((a) => a.revealed);
       const names = connectedPlayers(this)
         .filter((p) => !this.votes.has(p.id) && shown.some((a) => a.ownerId !== p.id))
@@ -456,6 +497,8 @@ export class Room {
     } else if (this.phase === 'reveal') {
       if (!this._visibleAnswers().some((a) => a.revealed)) throw new RoomError('no_revealed', '開示された回答がありません');
       this.phase = 'vote';
+      this.choice = null;
+      this.chooserId = this.settings.chooserMode === 'one' ? this.hostId : null;
     } else if (this.phase === 'vote') {
       this._tally();
       this.phase = 'result';
@@ -465,6 +508,14 @@ export class Room {
 
   // 多数決。同票なら同票の回答すべてを winners にする（tie: true）。
   _tally() {
+    if (this.settings.chooserMode === 'one') {
+      const tallies = this._visibleAnswers()
+        .filter((a) => a.revealed)
+        .map((a) => ({ answerId: a.id, ownerId: a.ownerId, votes: a.id === this.choice ? 1 : 0 }));
+      const winners = this.choice ? [this.choice] : [];
+      this.result = { tallies, winners, tie: false, mode: 'one' };
+      return;
+    }
     const counts = new Map();
     for (const [voterId, answerId] of this.votes) {
       const voter = this.players.get(voterId);
@@ -503,6 +554,7 @@ export class Room {
         return {
           round: h.round,
           topic: { hiragana: h.topic.hiragana, theme: h.topic.theme },
+          mode: h.result.mode ?? 'all',
           entries: h.result.tallies
             .map((t) => ({ text: byId.get(t.answerId)?.text ?? '', author: this.players.get(t.ownerId)?.name ?? '', votes: t.votes, won: winners.has(t.answerId) }))
             .sort((a, b) => b.votes - a.votes),
@@ -529,7 +581,8 @@ export class Room {
       settings: { ...this.settings, order: [...this.settings.order] },
       hostId: this.hostId,
       presenterId: this.presenterId,
-      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId },
+      chooserId: this.phase === 'vote' ? this.chooserId : null,
+      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId },
       players: activePlayers(this).map((p) => ({
         id: p.id,
         name: p.name,
@@ -577,7 +630,7 @@ export class Room {
         mine: a.ownerId === pid && (a.revealed || !anonymous),
         author: anonymous ? null : nameOf(a.ownerId),
         canReveal: this.phase === 'reveal' && !a.revealed && (anonymous ? isHost : a.ownerId === pid),
-        canVote: this.phase === 'vote' && a.revealed && a.ownerId !== pid,
+        canVote: this.phase === 'vote' && a.revealed && a.ownerId !== pid && (this.settings.chooserMode === 'all' || pid === this.chooserId),
       }));
       if (this.phase === 'reveal') {
         // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
@@ -594,11 +647,12 @@ export class Room {
         }
       }
     }
-    if (this.phase === 'vote') view.myVote = this.votes.get(pid) ?? null;
+    if (this.phase === 'vote') view.myVote = this.settings.chooserMode === 'one' ? this.choice : (this.votes.get(pid) ?? null);
     if (this.phase === 'result' && this.result) {
       view.result = {
         winners: [...this.result.winners],
         tie: this.result.tie,
+        mode: this.result.mode ?? 'all',
         tallies: this.result.tallies.map((t) => {
           const a = this._findAnswer(t.answerId);
           return { answerId: t.answerId, text: a?.text ?? '', votes: t.votes, author: nameOf(t.ownerId) };

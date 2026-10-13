@@ -46,7 +46,7 @@ let pendingLink = (() => {
   const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
-const newRoom = { presenterMode: 'host', identityMode: 'named' }; // 部屋をつくるときの設定（作成の前に選ぶ）
+const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all' }; // 部屋をつくるときの設定（作成の前に選ぶ）
 const ui = { createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
@@ -194,6 +194,7 @@ function confirmFor(m) {
   let body;
   if (m.phase === 'answer') body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
   else if (m.phase === 'reveal') body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
+  else if (view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
   else body = `まだ${p.count}人が未投票です（${p.names.join('、')}）。このまま結果を出しますか？`;
   return { body, ok: '進める', onOk: () => act('advance', { force: true }) };
 }
@@ -256,6 +257,7 @@ function entryHtml() {
       <div class="stack">
         <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
         <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
+        <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
       </div>
       <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
@@ -475,12 +477,12 @@ function revealHtml() {
 }
 
 function voteHtml() {
-  const v = view;
+  const v = view, one = v.settings.chooserMode === 'one';
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>正解だと思う回答に投票</h2></div>
+    <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2></div>
     ${poolHtml()}
-    ${progress('投票状況', v.players, (p) => p.voted)}`;
+    ${one ? '' : progress('投票状況', v.players, (p) => p.voted)}`;
 }
 
 function resultHtml() {
@@ -492,7 +494,7 @@ function resultHtml() {
     const wide = won || [...t.text].length > 10 ? ' wide' : '';
     return `<div class="cell ${won ? 'win' : 'open'}${wide}">
       ${won ? '<span class="stamp">正解</span>' : ''}
-      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${esc(t.author)}</span></span><span class="vcount">${t.votes}<small>票</small></span></div>`;
+      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${esc(t.author)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
   }).join('');
   return `
     ${telop(v.topic)}
@@ -539,6 +541,12 @@ function actionBar() {
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">出題者 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="presenter">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
+  if (v.phase === 'vote' && v.settings.chooserMode === 'one') {
+    const name = v.players.find((p) => p.id === v.chooserId)?.name ?? '';
+    const can = v.me.isHost || v.me.isChooser;
+    const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
+    who = can ? `<button class="who" data-do="sheet" data-kind="chooser">${inner}</button>` : `<div class="who">${inner}</div>`;
+  }
   return btn || who ? `<div class="action"><div>${who}${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
 }
 
@@ -577,7 +585,7 @@ function sheetHtml() {
     inner = `<h3>これまでの記録</h3>${graph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
-        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${e.votes}票</span></div>`).join('')}
+        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
       </article>`).join('')}</div>`;
   } else if (k === 'rename') {
     inner = `<h3>表示名を変える</h3><div class="stack">
@@ -594,6 +602,7 @@ function sheetHtml() {
       ${locked ? '<p class="hint">ラウンド中は変更できません</p>' : ''}
       <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
+      <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
@@ -601,6 +610,8 @@ function sheetHtml() {
     inner = `<h3>参加者を外す</h3><div class="menu">${pick('remove', others)}</div>`;
   } else if (k === 'allow') {
     inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
+  } else if (k === 'chooser') {
+    inner = `<h3>選ぶ人を任せる</h3><div class="menu">${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
   } else if (k === 'presenter') {
     inner = `<h3>出題者を指名する</h3><div class="menu">
       ${host ? '<button class="btn" data-do="randomPresenter">ランダムで指名する</button>' : ''}
@@ -628,6 +639,7 @@ function confirmPick(kind, id) {
     transfer: { body: `${name}さんに主催者を譲渡します。あなたは一般参加者になります。`, ok: '譲渡する', go: () => act('transferHost', { to: id }) },
     remove: { body: `${name}さんを部屋から外します。許可するまで、入り直せなくなります。`, ok: '外す', danger: true, go: () => act('removePlayer', { to: id }) },
     allow: { body: `${name}さんの再入室を許可します。`, ok: '許可する', go: () => act('allowRejoin', { to: id }) },
+    chooser: { body: `${name}さんに、正解を選ぶ人を任せます。`, ok: '任せる', go: () => act('setChooser', { to: id }) },
     presenter: { body: `${name}さんに出題者を任せます。`, ok: '任せる', go: () => act('setPresenter', { to: id }) },
   }[kind];
   ui.sheet = null;
@@ -717,7 +729,8 @@ const handlers = {
     if (view.myVote === d.id) return;
     const c = view.pool.find((x) => x.answerId === d.id);
     if (!c) return;
-    ui.modal = { quote: c.text, ok: view.myVote ? '投票を変更' : '投票する', onOk: () => act('vote', { answerId: d.id }) };
+    const one = view.settings.chooserMode === 'one';
+    ui.modal = { quote: c.text, ok: one ? (view.myVote ? '正解を変更' : '正解にする') : (view.myVote ? '投票を変更' : '投票する'), onOk: () => act(one ? 'choose' : 'vote', { answerId: d.id }) };
     render();
   },
   advance() { act('advance'); },

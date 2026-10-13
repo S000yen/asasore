@@ -180,6 +180,12 @@ function handleAct(entry, pid, msg, clientId) {
     case 'vote':
       room.vote(pid, msg.answerId);
       break;
+    case 'choose':
+      room.choose(pid, msg.answerId);
+      break;
+    case 'setChooser':
+      room.setChooser(pid, msg.to);
+      break;
     case 'rename':
       room.rename(pid, msg.name);
       break;
@@ -251,8 +257,8 @@ wss.on('connection', (ws) => {
         const entry = { room, sockets: new Map() };
         const p = room.join(null, msg.name);
         if (msg.settings && typeof msg.settings === 'object') { // 作成前に選んだ設定。不正な値は無視して、既定のまま作る
-          const { presenterMode, identityMode } = msg.settings;
-          try { room.setSettings(p.id, { presenterMode, identityMode }); } catch { /* 既定のまま */ }
+          const { presenterMode, identityMode, chooserMode } = msg.settings;
+          try { room.setSettings(p.id, { presenterMode, identityMode, chooserMode }); } catch { /* 既定のまま */ }
         }
         rooms.set(code, entry);
         attach(code, entry, p.id);

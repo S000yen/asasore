@@ -84,7 +84,7 @@ test('匿名モードでは結果発表まで作者が出ない（主催者に�
   assert.equal(bView.length, 3);
   assert.deepEqual([bView[0].mine, bView[0].text, bView[0].canReveal], [true, 'b1', false]);
   assert.ok(bView.slice(1).every((s) => s.text === null && s.answerId === null && s.author === null));
-  assert.ok(!JSON.stringify(room.viewFor(C).unrevealed).includes('b1'));
+  assert.ok(!room.viewFor(C).unrevealed.some((s) => s.text === 'b1')); // （idにたまたま含まれる文字列で揺れないよう、本文で見る）
 
   // 選択開示（主催者は中身を見ずに枠を選ぶ）
   room.revealSelected(A, hostView.unrevealed[0].answerId);
@@ -347,4 +347,58 @@ test('回答は取り下げるまで書き換えられない', () => {
   room.withdrawAnswer(ids[1]);
   room.submitAnswer(ids[1], 'べつの');
   assert.equal(room.viewFor(ids[1]).myAnswer, 'べつの');
+});
+
+test('「一人が決める」モード：選ぶ人だけが正解を選べて、選び直せる。投票はできない', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  assert.equal(room.viewFor(A).chooserId, A);
+  assert.ok(room.viewFor(A).me.isChooser && !room.viewFor(B).me.isChooser);
+  const poolB = room.viewFor(B).pool, poolA = room.viewFor(A).pool;
+  assert.ok(poolB.every((c) => !c.canVote));
+  assert.equal(poolA.filter((c) => c.canVote).length, 2); // 自分の回答は選べない
+  assert.throws(() => room.vote(B, poolA[0].answerId), { code: 'wrong_mode' });
+  const idOf = (txt) => room.viewFor(A).pool.find((c) => c.text === txt).answerId;
+  assert.throws(() => room.choose(B, idOf('a1')), { code: 'not_allowed' });
+  assert.throws(() => room.choose(A, idOf('a1')), { code: 'self_vote' });
+  room.choose(A, idOf('b1'));
+  room.choose(A, idOf('c1')); // 選び直し
+  assert.equal(room.viewFor(B).myVote, idOf('c1'));
+  room.advance(A);
+  const r = room.viewFor(B).result;
+  assert.deepEqual(r.winners, [idOf('c1')]);
+  assert.equal(r.mode, 'one');
+});
+
+test('「一人が決める」モード：選ぶ人を任せる／選ばないまま進むと確認が出る', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  assert.throws(() => room.setChooser(C, B), { code: 'not_allowed' });
+  assert.equal(room.advance(A).needConfirm, true); // まだ選ばれていない
+  room.setChooser(A, B);
+  assert.equal(room.viewFor(C).chooserId, B);
+  assert.throws(() => room.choose(A, room.viewFor(A).pool[0].answerId), { code: 'not_allowed' });
+  const target = room.viewFor(B).pool.find((c) => c.text === 'a1').answerId;
+  room.choose(B, target);
+  room.setChooser(B, C); // 選ぶ人から、さらに任せられる
+  assert.equal(room.advance(A).needConfirm, false);
+  assert.deepEqual(room.viewFor(A).result.winners, [target]);
+});
+
+test('全員投票モードでは、選ぶ操作はできない', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  assert.throws(() => room.choose(A, room.viewFor(A).pool[1].answerId), { code: 'wrong_mode' });
+  assert.equal(room.viewFor(A).chooserId, null);
 });
