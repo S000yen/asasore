@@ -251,13 +251,13 @@ function entryHtml() {
       </div>
       ${resume}`;
   const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${newRoom[key] === val ? 'on' : ''}" data-do="newSet" data-key="${key}" data-val="${val}">${label}</button>`).join('')}</div>`;
-  const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet">
+  const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeCreate" aria-label="閉じる">×</button>
       <h3>部屋をつくる</h3>
       <div class="stack">
         <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
         <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       </div>
-      <div class="dialog-actions"><button class="link" data-do="closeCreate">キャンセル</button><button class="btn primary go" data-do="create">作成</button></div>
+      <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
@@ -549,9 +549,9 @@ function sheetHtml() {
 function modalHtml() {
   const m = ui.modal;
   if (!m) return '';
-  return `<div class="scrim dialog" data-do="noop"><div class="sheet">
+  return `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="modalCancel" aria-label="閉じる">×</button>
     <p>${esc(m.body)}</p>
-    <div class="btns"><button class="btn" data-do="modalCancel">やめる</button><button class="btn ${m.danger ? 'danger' : 'primary'}" data-do="modalOk">${esc(m.ok)}</button></div>
+    <div class="dialog-actions"><button class="btn ${m.danger ? 'danger' : 'primary'} go" data-do="modalOk">${esc(m.ok)}</button></div>
   </div></div>`;
 }
 

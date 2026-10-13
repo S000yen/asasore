@@ -478,3 +478,7 @@ button.who:active { background: #fff; }
 /* 2択の外側の角は、全体の枠の丸みに沿わせる（間の境界線は直線のまま） */
 .seg .btn:first-child { border-radius: 12px 0 0 12px; }
 .seg .btn:last-child { border-radius: 0 12px 12px 0; }
+
+.dialog-actions { justify-content: center; }
+.dialog .sheet > p { padding-right: 40px; }
+.dialog-actions .btn.go.danger { background: #fff; }
