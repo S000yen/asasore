@@ -50,7 +50,13 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
 .round { font-family: var(--display); font-size: 17px; color: var(--ink); text-align: center; white-space: nowrap; }
 .bar-right { justify-self: end; }
-.bar-right { display: flex; align-items: center; gap: 4px; }
+/* 右上の角にくっつく白い札（本棚とメニュー） */
+.bar-right {
+  --top: calc(env(safe-area-inset-top) + 10px);
+  box-sizing: border-box; display: flex; align-items: center; gap: 2px; align-self: start;
+  margin: calc(-1 * var(--top)) -16px 0 0; min-height: calc(48px + var(--top)); padding: var(--top) 10px 0 12px;
+  border-radius: 0 0 0 16px; background: #fff;
+}
 .textbtn { border: 0; background: none; min-height: 44px; padding: 0 12px; font-weight: 700; font-size: 14px; color: var(--ink-soft); }
 .icon {
   display: grid; place-items: center; width: 44px; height: 48px; border: 0; padding: 0;

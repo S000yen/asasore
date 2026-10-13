@@ -292,7 +292,7 @@ function roomHtml() {
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
         ${v.history.length ? '<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>' : ''}
-        <button class="icon" data-do="openMenu" aria-label="メニュー">☰</button>
+        <button class="icon" data-do="openMenu" aria-label="メニュー"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5a8.5 6 0 0 1 17 0z"/><path d="M2.5 14h19"/><path d="M4.5 17.5h15v.5a2.5 2.5 0 0 1-2.5 2.5h-10a2.5 2.5 0 0 1-2.5-2.5z"/></svg></button>
       </div>
     </header>
     ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
