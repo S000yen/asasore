@@ -318,18 +318,21 @@ function topicHtml() {
       <div class="telop waiting"><div class="telop-text"><strong>${esc(name)}さんがお題を考えています</strong></div></div>
       ${v.me.isHost ? '<button class="btn" data-do="sheet" data-kind="presenter">出題者を変える</button>' : ''}`;
   }
+  // テロップそのものが入力欄（頭文字と題材を、直接書き換える）
+  const rbtn = (part, label, cls = '') => `<button class="rbtn ${cls}" data-do="draw" data-part="${part}" aria-label="${label}を引き直す">${ICON_REDRAW}<small>${label}</small></button>`;
   return `
-    ${telop({ hiragana: drafts.hiragana, theme: drafts.theme })}
-    <section class="card stack topic-card">
-      <div class="fhead"><button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button></div>
-      <div class="sentence">
-        <span class="boxed hira"><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" aria-label="頭文字" value="${esc(drafts.hiragana)}"><button class="inbtn" data-do="draw" data-part="hiragana" aria-label="頭文字を引き直す">${ICON_REDRAW}</button></span>
-        <span class="said">で始まる</span>
-      </div>
-      <span class="boxed"><textarea id="themeInput" class="theme-input" rows="1" data-draft="theme" maxlength="40" aria-label="題材">${esc(drafts.theme)}</textarea><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
-      <div class="sentence tail"><span class="said">といえば？</span><button class="roundbtn" data-do="draw" data-part="both" aria-label="頭文字と題材を、両方引き直す">${ICON_REDRAW}</button></div>
-    </section>
-    <div class="links right"><button class="link" data-do="reportTopic">⚑ この題材を報告</button></div>`;
+    <div class="telop edit">
+      <div class="tile"><input id="hiraInput" class="tile-input" type="text" data-draft="hiragana" maxlength="1" placeholder="？" aria-label="頭文字" autocomplete="off" value="${esc(drafts.hiragana)}"></div>
+      <div class="telop-text"><span class="tiny">で始まる</span><textarea id="themeInput" class="theme-edit" rows="1" data-draft="theme" maxlength="40" placeholder="題材" aria-label="題材">${esc(drafts.theme)}</textarea><span class="tiny">といえば？</span></div>
+    </div>
+    <div class="redraws">
+      <div class="rgroup">${rbtn('hiragana', '頭文字')}${rbtn('theme', '題材')}</div>
+      ${rbtn('both', '両方', 'solo')}
+    </div>
+    <div class="topic-foot">
+      <button class="link" data-do="reportTopic">⚑ この題材を報告</button>
+      <button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button>
+    </div>`;
 }
 
 function answerHtml() {
