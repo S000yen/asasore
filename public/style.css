@@ -561,17 +561,18 @@ button.who:active { background: #fff; }
 .cw:nth-child(even) > .cell.dark { transform: rotate(1deg); }
 .cw:has(.chk.on) > .cell { outline: 3px dashed var(--telop); outline-offset: 3px; }
 .chk {
-  position: absolute; top: -10px; left: -8px; z-index: 2; width: 30px; height: 30px; padding: 0;
-  border: 3px solid var(--telop); border-radius: 7px; background: var(--ink);
+  position: absolute; top: 6px; right: 6px; z-index: 2; width: 16px; height: 16px; padding: 0;
+  border: 2px solid var(--telop); border-radius: 4px; background: var(--ink);
 }
 .chk.on { background: var(--telop); }
-.chk.on::after { content: ''; position: absolute; left: 8px; top: 2px; width: 7px; height: 14px; border: solid var(--ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
+.chk.on::after { content: ''; position: absolute; left: 3.5px; top: 0; width: 4px; height: 8px; border: solid var(--ink); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.cw.sel > .cell.open { padding-right: 30px; }
+.chk::before { content: ''; position: absolute; inset: -12px; } /* 見た目は小さくても、押せる範囲は広く */
 .gtag {
-  position: absolute; top: -12px; right: -6px; z-index: 2; display: grid; place-items: center; width: 30px; height: 30px;
+  position: absolute; top: -12px; left: -8px; z-index: 2; display: grid; place-items: center; width: 30px; height: 30px;
   border: 3px solid var(--ink); border-radius: 50%; background: var(--telop); color: var(--ink);
   font-family: var(--display); font-size: 15px; line-height: 1; pointer-events: none;
 }
-.gtag.in { right: auto; left: -8px; }
 .groupbar { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .groupbar .gcount { flex: 1; min-width: 0; font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet h3.sub { margin: 2px 0 8px; font-size: 15px; color: var(--ink-soft); padding-right: 0; min-height: 0; }
@@ -608,3 +609,5 @@ body[data-phase="vote"] .chk { border-color: var(--telop); }
 @media (prefers-reduced-motion: reduce) { .startband { animation-duration: 1.6s; animation-name: startfade; } @keyframes startfade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } } }
 body[data-phase="vote"] .action .btn.primary { background: var(--telop); color: var(--ink); border-color: var(--telop); }
 body[data-phase="vote"] .groupbar .btn { background: #fff; color: var(--ink); border-color: #fff; }
+
+.bar.locked .room, .bar.locked .bar-right { pointer-events: none; opacity: .4; }

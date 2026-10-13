@@ -47,7 +47,7 @@ let pendingLink = (() => {
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
 const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all' }; // 部屋をつくるときの設定（作成の前に選ぶ）
-const ui = { sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
+const ui = { editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
@@ -211,16 +211,21 @@ function confirmFor(m) {
 // ---------- 描画 ----------
 
 // 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
+// 主催者の「まとめを編集」中か。編集中は、完了するまで他の操作ができない。
+const canEditGroups = () => Boolean(view?.me.isHost && ['reveal', 'vote'].includes(view.phase) && view.pool.filter((c) => c.revealed).length >= 2);
+const isEditing = () => ui.editing && canEditGroups();
 let lastPhaseKey = '';
 function trackPhase() {
   const phase = view?.phase ?? '';
   document.body.dataset.phase = phase;
   const key = view ? `${view.code}:${view.round}:${phase}` : '';
   if (key !== lastPhaseKey) {
-    ui.sel.clear(); // 段階が変わったら、まとめる対象の選択は解く
+    ui.sel.clear(); // 段階が変わったら、編集と選択は解く
+    ui.editing = false;
     if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
     lastPhaseKey = key;
   }
+  if (!isEditing()) { ui.editing = false; ui.sel.clear(); }
   if (view && ui.sel.size) { // 消えた・まだ開示されていない回答は、選択から外す
     const ok = new Set(view.pool.filter((c) => c.revealed).map((c) => c.answerId));
     for (const id of [...ui.sel]) if (!ok.has(id)) ui.sel.delete(id);
@@ -326,7 +331,7 @@ function endHtml() {
 function roomHtml() {
   const v = view;
   return `
-    <header class="bar">
+    <header class="bar${isEditing() ? ' locked' : ''}">
       <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><b class="code">${esc(v.code)}</b></button>
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
@@ -526,12 +531,13 @@ function answerHtml() {
 const groupMark = (n) => String.fromCharCode(64 + n);
 function poolHtml() {
   const v = view, anon = v.settings.identityMode === 'anonymous';
+  const editing = isEditing();
   const myGroup = v.myVote ? v.pool.find((x) => x.answerId === v.myVote)?.group ?? null : null;
   const cells = v.pool.map((c) => {
     const me = c.mine ? ' mine' : '';
     if (!c.revealed) {
       const cls = `cell dark${me}`;
-      const inner = c.canReveal
+      const inner = c.canReveal && !editing
         ? `<button class="${cls} tap" aria-label="開示" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}"></button>`
         : `<div class="${cls}"></div>`;
       return `<div class="cw">${inner}</div>`;
@@ -540,21 +546,22 @@ function poolHtml() {
     const picked = v.myVote === c.answerId || (myGroup !== null && c.group === myGroup);
     const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
     const cls = `cell open${me}${picked ? ' picked' : ''}`;
-    const main = c.canVote
+    const main = c.canVote && !editing
       ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
       : `<div class="${cls}">${body}</div>`;
     const on = ui.sel.has(c.answerId);
-    const check = c.canGroup ? `<button class="chk${on ? ' on' : ''}" role="checkbox" aria-checked="${on}" aria-label="まとめる対象に選ぶ" data-do="toggleSel" data-id="${esc(c.answerId)}"></button>` : '';
+    const check = c.canGroup && editing ? `<button class="chk${on ? ' on' : ''}" role="checkbox" aria-checked="${on}" aria-label="まとめる対象に選ぶ" data-do="toggleSel" data-id="${esc(c.answerId)}"></button>` : '';
     const tag = c.group ? `<span class="gtag" aria-label="同じ回答 ${groupMark(c.group)}">${groupMark(c.group)}</span>` : '';
-    return `<div class="cw${wide}${c.canGroup ? ' sel' : ''}">${main}${check}${tag}</div>`;
+    return `<div class="cw${wide}${editing ? ' sel' : ''}">${main}${check}${tag}</div>`;
   }).join('');
   return `<section class="pool">${cells}</section>`;
 }
 
-// 主催者だけの、同じ回答をまとめる／ばらす操作
+// 主催者だけの、同じ回答をまとめる／ばらす操作。「まとめを編集」でオンにして、「編集を完了」で閉じるまで、ほかの操作はできない。
 function groupBarHtml() {
   const v = view;
-  if (!v.me.isHost || v.pool.filter((c) => c.revealed).length < 2) return '';
+  if (!canEditGroups()) return '';
+  if (!isEditing()) return '<div class="groupbar"><span class="gcount"></span><button class="btn small" data-do="editOn">まとめを編集</button></div>';
   const picked = v.pool.filter((c) => ui.sel.has(c.answerId));
   const canGroup = picked.length >= 2;
   const canUngroup = picked.some((c) => c.group);
@@ -568,7 +575,7 @@ function revealHtml() {
   const total = v.pool.length;
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
+    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 && !isEditing() ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
     ${groupBarHtml()}${poolHtml()}
 `;
 }
@@ -603,6 +610,7 @@ function resultHtml() {
 
 function actionBar() {
   const v = view, host = v.me.isHost;
+  if (isEditing()) return '<div class="action"><div><button class="btn primary block" data-do="editDone">編集を完了</button></div></div>';
   let btn = '', meta = '';
   switch (v.phase) {
     case 'lobby':
@@ -844,6 +852,8 @@ const handlers = {
   revealOwn() { act('revealOwn'); },
   revealSelected(d) { act('revealSelected', { answerId: d.id }); },
   revealAll() { act('revealAll'); },
+  editOn() { ui.sheet = null; ui.sel.clear(); ui.editing = true; render(); },
+  editDone() { ui.editing = false; ui.sel.clear(); render(); },
   toggleSel(d) { if (ui.sel.has(d.id)) ui.sel.delete(d.id); else ui.sel.add(d.id); render(); },
   groupSel() {
     const ids = view.pool.filter((c) => ui.sel.has(c.answerId)).map((c) => c.answerId);

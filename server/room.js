@@ -169,7 +169,7 @@ export class Room {
       const hostNow = this.players.get(this.hostId);
       if (ch && !ch.connected && now - ch.disconnectedAt >= this.graceMs && hostNow?.connected) {
         this.chooserId = this.hostId;
-        if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null;
+        if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null;
         events.push({ type: 'chooser_returned_to_host', from: ch.id, to: this.hostId });
       }
     }
@@ -226,7 +226,7 @@ export class Room {
     if (target === by) throw new RoomError('bad_target', '自分自身は削除できません');
     const p = getActive(this, target);
     p.removed = true;
-    if (this.chooserId === target) { this.chooserId = this.hostId; if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null; }
+    if (this.chooserId === target) { this.chooserId = this.hostId; if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null; }
     if (this.presenterId === target) {
       this.presenterId = this.hostId;
       this.topic = null;
@@ -445,6 +445,12 @@ export class Room {
     return this._liveGroups().find((g) => g.includes(answerId)) ?? [answerId];
   }
 
+  // 自分だけの回答（まとまりに入っていない）には、投票・選択できない。まとまりに入っていれば、同じ回答の人も、そのまとまりに投票できる（集計で合わせる）。
+  _selfOnly(by, answerId) {
+    const a = this._findAnswer(answerId);
+    return Boolean(a) && a.ownerId === by && this._unitOf(answerId).length === 1;
+  }
+
   _ownersOf(ids) {
     return new Set(ids.map((id) => this._findAnswer(id)?.ownerId).filter(Boolean));
   }
@@ -465,10 +471,6 @@ export class Room {
     const next = live.filter((g) => !g.some((id) => merged.has(id)));
     next.push([...merged]);
     this.groups = next;
-    // まとまりの中に自分の回答がある人の票・選択は、取り消す（自分の回答には投票できないため）
-    const owners = this._ownersOf([...merged]);
-    for (const [voter, aid] of [...this.votes]) if (merged.has(aid) && owners.has(voter)) this.votes.delete(voter);
-    if (this.choice && merged.has(this.choice) && owners.has(this.chooserId)) this.choice = null;
   }
 
   // 選んだ回答を、まとまりから外す（残りが1つになったまとまりは解消）
@@ -477,6 +479,9 @@ export class Room {
     this._need('reveal', 'vote');
     const drop = new Set(answerIds ?? []);
     this.groups = this._liveGroups().map((g) => g.filter((id) => !drop.has(id))).filter((g) => g.length >= 2);
+    // ばらした結果、自分だけの回答への票になってしまったものは取り消す
+    for (const [voter, aid] of [...this.votes]) if (this._selfOnly(voter, aid)) this.votes.delete(voter);
+    if (this.choice && this._selfOnly(this.chooserId, this.choice)) this.choice = null;
   }
 
   vote(by, answerId) {
@@ -485,7 +490,7 @@ export class Room {
     if (this.settings.chooserMode !== 'all') throw new RoomError('wrong_mode', 'このモードでは投票ではなく、選ぶ人が決めます');
     const a = this._findAnswer(answerId);
     if (!a || !a.revealed) throw new RoomError('no_answer', '投票できる回答が見つかりません');
-    if (this._ownersOf(this._unitOf(answerId)).has(by)) throw new RoomError('self_vote', '自分の回答には投票できません');
+    if (this._selfOnly(by, answerId)) throw new RoomError('self_vote', '自分の回答には投票できません');
     this.votes.set(by, answerId);
   }
 
@@ -497,7 +502,7 @@ export class Room {
     if (by !== this.chooserId) throw new RoomError('not_allowed', '正解を選べるのは、選ぶ人だけです');
     const a = this._findAnswer(answerId);
     if (!a || !a.revealed) throw new RoomError('no_answer', '選べる回答が見つかりません');
-    if (this._ownersOf(this._unitOf(answerId)).has(by)) throw new RoomError('self_vote', '自分の回答は選べません');
+    if (this._selfOnly(by, answerId)) throw new RoomError('self_vote', '自分の回答は選べません');
     this.choice = answerId;
   }
 
@@ -510,7 +515,7 @@ export class Room {
     const target = getActive(this, to);
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
     this.chooserId = to;
-    if (this.choice && this._ownersOf(this._unitOf(this.choice)).has(to)) this.choice = null; // 自分の回答は選べない
+    if (this.choice && this._selfOnly(to, this.choice)) this.choice = null; // 自分の回答は選べない
     return { type: 'chooser_changed', by, to };
   }
 
@@ -526,7 +531,7 @@ export class Room {
     if (this.phase === 'vote' && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId) {
       const from = this.chooserId;
       this.chooserId = this.hostId;
-      if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null;
+      if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null;
       return { type: 'role_reclaimed', role: 'chooser', from, to: this.hostId };
     }
     throw new RoomError('nothing_to_reclaim', '回収できる役割がありません');
@@ -555,9 +560,9 @@ export class Room {
         const c = this.players.get(this.chooserId);
         return this.choice ? { count: 0, names: [] } : { count: 1, names: [c?.name ?? ''] };
       }
-      const units = this._visibleAnswers().filter((a) => a.revealed).map((a) => this._ownersOf(this._unitOf(a.id)));
+      const shown = this._visibleAnswers().filter((a) => a.revealed);
       const names = connectedPlayers(this)
-        .filter((p) => !this.votes.has(p.id) && units.some((o) => !o.has(p.id)))
+        .filter((p) => !this.votes.has(p.id) && shown.some((a) => !this._selfOnly(p.id, a.id)))
         .map((p) => p.name);
       return { count: names.length, names };
     }
@@ -618,7 +623,7 @@ export class Room {
       const voter = this.players.get(voterId);
       const a = this._findAnswer(answerId);
       if (!voter || voter.removed || !a || !a.revealed) continue;
-      if (this._ownersOf(this._unitOf(answerId)).has(voterId)) continue;
+      if (this._selfOnly(voterId, answerId)) continue;
       const k = unitKey(answerId);
       counts.set(k, (counts.get(k) ?? 0) + 1);
       total += 1;
@@ -733,7 +738,7 @@ export class Room {
         group: a.revealed ? groupNo(a.id) : null,
         author: anonymous ? null : nameOf(a.ownerId),
         canReveal: this.phase === 'reveal' && !a.revealed && (anonymous ? isHost : a.ownerId === pid),
-        canVote: this.phase === 'vote' && a.revealed && !this._ownersOf(this._unitOf(a.id)).has(pid) && (this.settings.chooserMode === 'all' || pid === this.chooserId),
+        canVote: this.phase === 'vote' && a.revealed && !this._selfOnly(pid, a.id) && (this.settings.chooserMode === 'all' || pid === this.chooserId),
         canGroup: isHost && a.revealed && (this.phase === 'reveal' || this.phase === 'vote'),
       }));
       if (this.phase === 'reveal') {

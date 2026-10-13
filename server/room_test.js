@@ -539,40 +539,41 @@ test('グループ化：主催者だけ、開示中にまとめられ、解除�
   assert.equal(room.viewFor(D).pool.filter((x) => x.group).length, 0);
 });
 
-test('グループ化：投票はまとまりで数え、勝つとまとまり全員が正解。自分を含むまとまりには投票できない', () => {
+test('グループ化：投票はまとまりで数え、勝つとまとまり全員が正解。同じ回答の人もそのまとまりに投票できる', () => {
   const { room, ids } = setup(5);
   const [A, B, C, D, E] = ids;
   toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま', 'とり']);
-  const [a, b, c, d] = [A, B, C, D].map((id) => ansOf(room, id));
+  const [a, b, c] = [A, B, C].map((id) => ansOf(room, id));
   room.advance(A); // 投票へ
   room.group(A, [a, b]); // 投票中でもまとめられる
-  assert.throws(() => room.vote(A, b), { code: 'self_vote' }); // Aの回答を含むまとまり
-  assert.throws(() => room.vote(B, a), { code: 'self_vote' });
-  assert.equal(room.viewFor(A).pool.find((x) => x.answerId === b).canVote, false);
-  room.vote(C, a); room.vote(D, b); room.vote(E, a); // 同じまとまりへ3票
-  room.vote(A, c); room.vote(B, d);
+  assert.throws(() => room.vote(C, c), { code: 'self_vote' }); // まとまりに入っていない自分の回答には投票できない
+  assert.equal(room.viewFor(C).pool.find((x) => x.answerId === c).canVote, false);
+  assert.equal(room.viewFor(A).pool.find((x) => x.answerId === b).canVote, true); // 同じ回答の人は、まとまりに投票できる
+  room.vote(A, b); room.vote(B, a); room.vote(C, a); room.vote(E, a); // まとまりへ4票
+  room.vote(D, c);
   room.advance(A);
   const r = room.viewFor(A).result;
   assert.deepEqual([...r.winners].sort(), [a, b].sort());
   assert.equal(r.tie, false);
-  const ta = r.tallies.find((t) => t.answerId === a);
-  const tb = r.tallies.find((t) => t.answerId === b);
-  assert.equal(ta.votes, 3);
-  assert.equal(tb.votes, 3);
-  assert.equal(ta.group, 1);
+  assert.equal(r.tallies.find((t) => t.answerId === a).votes, 4);
+  assert.equal(r.tallies.find((t) => t.answerId === b).votes, 4);
+  assert.equal(r.tallies.find((t) => t.answerId === a).group, 1);
   assert.equal(room.viewFor(A).history[0].total, 5);
 });
 
-test('グループ化：投票のあとでまとめると、自分の回答を含む票は取り消される', () => {
+test('グループ化：ばらして自分だけの回答への票になったものは取り消される', () => {
   const { room, ids } = setup(4);
   const [A, B, C, D] = ids;
   toReveal(room, ids, ['ねこ', 'ネコ', 'いぬ', 'うま']);
-  const [a, b, c] = [A, B, C].map((id) => ansOf(room, id));
+  const [a, b] = [A, B].map((id) => ansOf(room, id));
   room.advance(A);
-  room.vote(B, c); room.vote(C, b); // Cの投票先は B の回答
-  room.group(A, [b, c]); // Cは自分の回答を含むまとまりになる → Cの票は消える。Bの票も同じ理由で消える
-  assert.equal(room.viewFor(C).myVote, null);
-  assert.equal(room.viewFor(B).myVote, null);
+  room.group(A, [a, b]);
+  room.vote(A, a); // 自分の回答だが、まとまりなので投票できる
+  room.vote(C, a);
+  assert.equal(room.viewFor(A).myVote, a);
+  room.ungroup(A, [a]); // まとまりが解消 → Aの票は自分だけの回答への票になる
+  assert.equal(room.viewFor(A).myVote, null);
+  assert.equal(room.viewFor(C).myVote, a); // Cの票は残る
 });
 
 test('グループ化：「一人が決める」モードでも、選ぶとまとまり全員が正解', () => {
