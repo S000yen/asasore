@@ -265,7 +265,7 @@ button.answer:disabled { opacity: .55; }
 .btn.small svg { flex: none; }
 .btn.small { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .topic-card { position: relative; }
-.fhead { display: flex; align-items: center; justify-content: space-between; min-height: 40px; }
+.fhead { display: flex; align-items: center; justify-content: flex-end; min-height: 40px; }
 .fhead .btn { min-height: 40px; padding: 0 12px; }
 .boxed { position: relative; display: block; }
 .boxed input { padding-right: 56px; }
@@ -298,3 +298,11 @@ button.answer:disabled { opacity: .55; }
 button.slot.own:active { background: #fff3a8; }
 .answer.mine { background: #fffbe0; border-color: var(--ink); }
 .answer .state.me { float: right; background: var(--ink); color: var(--telop); border-radius: 999px; padding: 0 10px; font-size: 12px; font-weight: 700; }
+
+/* 題を、テロップと同じ読み順で直す：「あ で始まる / 題材 / といえば？」 */
+.sentence { display: flex; align-items: center; gap: 12px; }
+.sentence.tail { justify-content: space-between; }
+.said { font-weight: 700; font-size: 15px; }
+.boxed.hira { flex: none; width: 128px; }
+.boxed .hira-input { padding: 6px 48px 6px 14px; text-align: center; }
+.boxed.hira .inbtn { right: 4px; }

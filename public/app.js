@@ -312,14 +312,13 @@ function topicHtml() {
   return `
     ${telop({ hiragana: drafts.hiragana, theme: drafts.theme })}
     <section class="card stack topic-card">
-      <div class="field">
-        <div class="fhead"><span>ひらがな</span><button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button></div>
-        <span class="boxed"><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" value="${esc(drafts.hiragana)}"><button class="inbtn" data-do="draw" data-part="hiragana" aria-label="ひらがなを引き直す">${ICON_REDRAW}</button></span>
+      <div class="fhead"><button class="btn dark small" data-do="sheet" data-kind="presenter">${ICON_SEND}出題者を任せる</button></div>
+      <div class="sentence">
+        <span class="boxed hira"><input id="hiraInput" class="hira-input" type="text" data-draft="hiragana" maxlength="1" aria-label="頭文字" value="${esc(drafts.hiragana)}"><button class="inbtn" data-do="draw" data-part="hiragana" aria-label="頭文字を引き直す">${ICON_REDRAW}</button></span>
+        <span class="said">で始まる</span>
       </div>
-      <label class="field"><span>題材</span>
-        <span class="boxed"><input id="themeInput" type="text" data-draft="theme" maxlength="40" value="${esc(drafts.theme)}"><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
-      </label>
-      <button class="btn small block" data-do="draw" data-part="both">${ICON_REDRAW.replace('width="20" height="20"', 'width="18" height="18"')}<span>ひらがなと題材を、両方引き直す</span></button>
+      <span class="boxed"><input id="themeInput" type="text" data-draft="theme" maxlength="40" aria-label="題材" value="${esc(drafts.theme)}"><button class="inbtn" data-do="draw" data-part="theme" aria-label="題材を引き直す">${ICON_REDRAW}</button></span>
+      <div class="sentence tail"><span class="said">といえば？</span><button class="roundbtn" data-do="draw" data-part="both" aria-label="頭文字と題材を、両方引き直す">${ICON_REDRAW}</button></div>
     </section>
     <div class="links right"><button class="link" data-do="reportTopic">⚑ この題材を報告</button></div>`;
 }
