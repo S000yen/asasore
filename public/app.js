@@ -573,7 +573,7 @@ function sheetHtml() {
     for (const h of v.history) for (const e of h.entries) { const t = tot.get(e.author) ?? { w: 0, v: 0 }; t.w += e.won ? 1 : 0; t.v += e.votes; tot.set(e.author, t); }
     const rank = [...tot].sort((x, y) => y[1].w - x[1].w || y[1].v - x[1].v);
     const maxW = Math.max(1, ...rank.map(([, t]) => t.w));
-    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
+    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row${t.w > 0 && t.w === maxW ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
     inner = `<h3>これまでの記録</h3>${graph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
