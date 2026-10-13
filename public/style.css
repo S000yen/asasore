@@ -430,14 +430,31 @@ button.who:active { background: #fff; }
 .entry-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .bigbtn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5vw;
-  min-height: 40vw; max-height: 190px; padding: 14px 8px;
+  min-height: 44vw; max-height: 200px; padding: 14px 8px;
   border: 2px solid var(--ink); border-radius: 18px; background: #fff; color: var(--ink);
   font-weight: 700; font-size: clamp(13px, 4.3vw, 20px); white-space: nowrap;
 }
 .bigbtn.primary { background: var(--ink); color: #fff; }
-.bigbtn svg { width: clamp(38px, 13vw, 64px); height: clamp(38px, 13vw, 64px); flex: none; }
+.bigbtn svg { width: clamp(50px, 18vw, 88px); height: clamp(50px, 18vw, 88px); flex: none; }
 .bigbtn:active { transform: scale(.98); }
-@media (min-width: 480px) { .bigbtn { min-height: 160px; gap: 12px; } }
+@media (min-width: 480px) { .bigbtn { min-height: 180px; gap: 12px; } }
 
 .hero-title { font-size: clamp(20px, 6.9vw, 34px); white-space: nowrap; }
 @media (max-width: 479px) { .telop.hero .tile { width: clamp(56px, 19vw, 76px); height: clamp(56px, 19vw, 76px); font-size: clamp(36px, 12vw, 48px); } }
+
+/* 待ち時間の、跳ね返るロゴ */
+.bfield { position: relative; height: min(56dvh, 460px); overflow: hidden; border-radius: 18px; background: var(--ink); }
+.blogo {
+  position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 7px; width: 108px; height: 64px; padding: 7px;
+  border: 3px solid var(--ink); border-radius: 7px; background: var(--telop); will-change: transform;
+}
+.blogo .bt { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 4px; background: var(--ink); color: var(--telop); font-family: var(--display); font-size: 25px; line-height: 1; }
+.blogo .bl { display: grid; gap: 7px; flex: 1; }
+.blogo .bl i { display: block; height: 8px; border-radius: 4px; background: var(--ink); }
+.blogo .bl i:last-child { width: 60%; }
+.blogo.c0 { background: var(--telop); }
+.blogo.c1 { background: #fff; }
+.blogo.c2 { background: var(--stamp); }
+.blogo.c3 { background: var(--dawn); }
+.blogo.c0 .bt { color: var(--telop); } .blogo.c1 .bt { color: var(--telop); } .blogo.c2 .bt { color: #fff; } .blogo.c3 .bt { color: var(--telop); }
+.blogo { border-color: #0e1630; }
