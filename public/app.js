@@ -427,15 +427,16 @@ function resultHtml() {
   const winners = new Set(r.winners);
   const rows = [...r.tallies].sort((a, b) => b.votes - a.votes).map((t) => {
     const won = winners.has(t.answerId);
-    return `<div class="answer ${won ? 'won' : 'lost'}">
+    const wide = won || [...t.text].length > 10 ? ' wide' : '';
+    return `<div class="cell ${won ? 'win' : 'open'}${wide}">
       ${won ? '<span class="stamp">正解</span>' : ''}
-      <span class="text ${won ? 'xl' : sizeOf(t.text)}">${esc(t.text)}</span><span class="foot"><span class="by">${esc(t.author)}</span><span class="votes">${t.votes}票</span></span></div>`;
+      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${esc(t.author)}</span></span><span class="vcount">${t.votes}<small>票</small></span></div>`;
   }).join('');
   return `
     ${telop(v.topic)}
     ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
     ${r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
-    <section class="stack">${rows}</section>`;
+    <section class="pool">${rows}</section>`;
 }
 
 function actionBar() {
@@ -545,7 +546,7 @@ function modalHtml() {
   const m = ui.modal;
   if (!m) return '';
   return `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="modalCancel" aria-label="閉じる">×</button>
-    <p>${esc(m.body)}</p>
+    ${m.quote ? `<p class="vquote">${esc(m.quote)}</p>` : `<p>${esc(m.body)}</p>`}
     <div class="dialog-actions"><button class="btn ${m.danger ? 'danger' : 'primary'} go" data-do="modalOk">${esc(m.ok)}</button></div>
   </div></div>`;
 }
@@ -645,7 +646,13 @@ const handlers = {
   revealOwn() { act('revealOwn'); },
   revealSelected(d) { act('revealSelected', { answerId: d.id }); },
   revealAll() { act('revealAll'); },
-  vote(d) { act('vote', { answerId: d.id }); },
+  vote(d) {
+    if (view.myVote === d.id) return;
+    const c = view.pool.find((x) => x.answerId === d.id);
+    if (!c) return;
+    ui.modal = { quote: c.text, ok: view.myVote ? '投票を変更' : '投票する', onOk: () => act('vote', { answerId: d.id }) };
+    render();
+  },
   advance() { act('advance'); },
   modalOk() { const m = ui.modal; ui.modal = null; render(); m?.onOk?.(); },
   modalCancel() { ui.modal = null; render(); },
