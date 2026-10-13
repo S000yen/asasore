@@ -1,0 +1,15 @@
+{
+  "name": "朝からそれ正解",
+  "short_name": "朝それ",
+  "description": "頭文字のお題に、みんなで「正解」を出し合うゲーム",
+  "lang": "ja",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#dcebf2",
+  "theme_color": "#dcebf2",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

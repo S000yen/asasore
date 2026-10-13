@@ -586,8 +586,9 @@ const handlers = {
   async share() {
     const url = `${location.origin}/?code=${view.code}`; // 開くだけで、この部屋にそのまま入れる
     ui.sheet = null;
+    // リンクは文章の中に入れる（url を別に渡すと、「コピー」で落ちる端末がある）
     try {
-      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `朝からそれ正解の部屋に入る（部屋コード ${view.code}）`, url }); return; }
+      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `朝からそれ正解の部屋に入る（部屋コード ${view.code}）\n${url}` }); return; }
     } catch { return; } // 共有をやめた場合
     try { await navigator.clipboard.writeText(url); toast('招待リンクをコピーしました'); } catch { toast(url); }
   },

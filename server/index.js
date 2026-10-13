@@ -25,6 +25,7 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
 const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
