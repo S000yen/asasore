@@ -14,6 +14,8 @@ import {
   requireHost,
   requirePresenter,
   canAssignPresenter,
+  canAssignChooser,
+  holderAvailable,
   pickSuccessor,
   pickNextInRotation,
   pickRandomPresenter,
@@ -161,6 +163,15 @@ export class Room {
         events.push({ type: 'presenter_returned_to_host', from: pres.id, to: this.hostId });
       }
     }
+    if (this.phase === 'vote' && this.settings.chooserMode === 'one') {
+      const ch = this.players.get(this.chooserId);
+      const hostNow = this.players.get(this.hostId);
+      if (ch && !ch.connected && now - ch.disconnectedAt >= this.graceMs && hostNow?.connected) {
+        this.chooserId = this.hostId;
+        if (this.choice && this._findAnswer(this.choice)?.ownerId === this.hostId) this.choice = null;
+        events.push({ type: 'chooser_returned_to_host', from: ch.id, to: this.hostId });
+      }
+    }
     if (this.shouldClose(now)) {
       this.close();
       events.push({ type: 'room_closed', reason: 'empty' });
@@ -280,8 +291,7 @@ export class Room {
     this.round += 1;
     this.answers.clear();
     this.votes.clear();
-    this.chooserId = null;
-    this.choice = null;
+    this.choice = null; // 選ぶ人（chooserId）は、次のラウンドにも引き継ぐ
     this.revealCounter = 0;
     this.result = null;
     this.topic = null;
@@ -292,7 +302,8 @@ export class Room {
       this.presenterId = next ? next.id : this.hostId;
       if (next) this.rotationCursor = next.id;
     } else {
-      this.presenterId = this.hostId; // 毎ラウンド主催者に戻す
+      // 前の出題者がまだいるなら、そのまま引き継ぐ（いなければ主催者）
+      this.presenterId = holderAvailable(this, this.presenterId) ? this.presenterId : this.hostId;
     }
     this.phase = 'topic';
     return { type: 'round_started', round: this.round, presenterId: this.presenterId };
@@ -301,7 +312,7 @@ export class Room {
   // 出題者の指名（主催者はいつでも、出題者は委譲として）。指名されると下書きは白紙に戻る。
   setPresenter(by, to) {
     getActive(this, by);
-    if (!canAssignPresenter(this, by)) throw new RoomError('not_allowed', '出題者を指名できるのは主催者か出題者です');
+    if (!canAssignPresenter(this, by)) throw new RoomError('not_allowed', '出題者を指名できるのは、いまの出題者です（不在のときは主催者）');
     this._need('topic');
     const target = getActive(this, to);
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
@@ -311,9 +322,10 @@ export class Room {
   }
 
   randomPresenter(by) {
-    requireHost(this, by);
+    getActive(this, by);
+    if (!canAssignPresenter(this, by)) throw new RoomError('not_allowed', '出題者を指名できるのは、いまの出題者です（不在のときは主催者）');
     this._need('topic');
-    const pick = pickRandomPresenter(this, this.presenterId);
+    const pick = pickRandomPresenter(this); // 本人も含めて選ぶ
     if (!pick) throw new RoomError('no_candidate', '指名できる人がいません');
     return this.setPresenter(by, pick.id);
   }
@@ -445,12 +457,20 @@ export class Room {
     getActive(this, by);
     this._need('vote');
     if (this.settings.chooserMode !== 'one') throw new RoomError('wrong_mode', 'このモードでは、選ぶ人はいません');
-    if (by !== this.hostId && by !== this.chooserId) throw new RoomError('not_allowed', '選ぶ人を任せられるのは、主催者か選ぶ人です');
+    if (!canAssignChooser(this, by)) throw new RoomError('not_allowed', '選ぶ人を任せられるのは、いまの選ぶ人です（不在のときは主催者）');
     const target = getActive(this, to);
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
     this.chooserId = to;
     if (this.choice && this._findAnswer(this.choice)?.ownerId === to) this.choice = null; // 自分の回答は選べない
     return { type: 'chooser_changed', by, to };
+  }
+
+  randomChooser(by) {
+    getActive(this, by);
+    this._need('vote');
+    const pick = pickRandomPresenter(this); // 本人も含めて選ぶ
+    if (!pick) throw new RoomError('no_candidate', '指名できる人がいません');
+    return this.setChooser(by, pick.id);
   }
 
   // 未回答・未開示・未投票の確認。匿名の漏れを避けるため、開示フェーズでは件数だけ返す。
@@ -498,7 +518,7 @@ export class Room {
       if (!this._visibleAnswers().some((a) => a.revealed)) throw new RoomError('no_revealed', '開示された回答がありません');
       this.phase = 'vote';
       this.choice = null;
-      this.chooserId = this.settings.chooserMode === 'one' ? this.hostId : null;
+      this.chooserId = this.settings.chooserMode === 'one' ? (holderAvailable(this, this.chooserId) ? this.chooserId : this.hostId) : null;
     } else if (this.phase === 'vote') {
       this._tally();
       this.phase = 'result';
@@ -582,7 +602,7 @@ export class Room {
       hostId: this.hostId,
       presenterId: this.presenterId,
       chooserId: this.phase === 'vote' ? this.chooserId : null,
-      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId },
+      me: { id: pid, name: me.name, isHost, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId, canAssignPresenter: this.phase === 'topic' && canAssignPresenter(this, pid), canAssignChooser: this.phase === 'vote' && canAssignChooser(this, pid) },
       players: activePlayers(this).map((p) => ({
         id: p.id,
         name: p.name,

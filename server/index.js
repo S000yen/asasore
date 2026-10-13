@@ -104,6 +104,10 @@ function describe(room, ev) {
         : `${name(ev.to)}さんが主催者になりました`;
     case 'presenter_changed':
       return `${name(ev.to)}さんが出題者になりました`;
+    case 'chooser_changed':
+      return `${name(ev.to)}さんが正解を選ぶ人になりました`;
+    case 'chooser_returned_to_host':
+      return `選ぶ人が不在のため、主催者に戻りました`;
     case 'presenter_returned_to_host':
       return `出題者が不在のため、主催者に戻りました`;
     default:
@@ -183,8 +187,11 @@ function handleAct(entry, pid, msg, clientId) {
     case 'choose':
       room.choose(pid, msg.answerId);
       break;
+    case 'randomChooser':
+      ev = room.randomChooser(pid);
+      break;
     case 'setChooser':
-      room.setChooser(pid, msg.to);
+      ev = room.setChooser(pid, msg.to);
       break;
     case 'rename':
       room.rename(pid, msg.name);

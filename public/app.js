@@ -537,13 +537,13 @@ function actionBar() {
   let who = '';
   if (v.phase === 'topic') {
     const name = v.players.find((p) => p.id === v.presenterId)?.name ?? '';
-    const can = v.me.isHost || v.me.isPresenter;
+    const can = v.me.canAssignPresenter;
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">出題者 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="presenter">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
   if (v.phase === 'vote' && v.settings.chooserMode === 'one') {
     const name = v.players.find((p) => p.id === v.chooserId)?.name ?? '';
-    const can = v.me.isHost || v.me.isChooser;
+    const can = v.me.canAssignChooser;
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="chooser">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
@@ -611,10 +611,10 @@ function sheetHtml() {
   } else if (k === 'allow') {
     inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
   } else if (k === 'chooser') {
-    inner = `<h3>選ぶ人を任せる</h3><div class="menu">${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
+    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
   } else if (k === 'presenter') {
     inner = `<h3>出題者を指名する</h3><div class="menu">
-      ${host ? '<button class="btn" data-do="randomPresenter">ランダムで指名する</button>' : ''}
+      <button class="btn" data-do="randomPresenter">ランダムで指名する</button>
       ${pick('presenter', v.players.filter((p) => p.connected && p.id !== v.presenterId))}</div>`;
   }
   return `<div class="scrim" data-do="scrim"><div class="sheet"><button class="x" data-do="closeSheet" aria-label="閉じる">×</button>${inner}</div></div>`;
@@ -703,6 +703,7 @@ const handlers = {
   },
   pick(d) { confirmPick(d.kind, d.id); },
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
+  randomChooser() { ui.sheet = null; act('randomChooser'); render(); },
   reportTopic() {
     const t = view.topic?.theme;
     if (!t || drafts.theme.trim() !== t) return toast('書き換えた題材は報告できません');

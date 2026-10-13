@@ -38,10 +38,16 @@ export function requirePresenter(room, id) {
   if (room.presenterId !== id) throw new RoomError('not_presenter', '出題者のみ可能な操作です');
 }
 
-// 出題者の指名・委譲ができるのは、主催者か、いまの出題者。
-export function canAssignPresenter(room, id) {
-  return id === room.hostId || id === room.presenterId;
-}
+// 担当者（出題者・選ぶ人）が、いま務められる状態か（参加していて、接続中）
+export const holderAvailable = (room, holderId) => {
+  const p = room.players.get(holderId);
+  return isActive(p) && p.connected;
+};
+
+// 担当の指名・委譲ができるのは、いまの担当者だけ。担当者が不在のときは、主催者に権限が戻る。
+const canAssign = (room, id, holderId) => id === holderId || (id === room.hostId && !holderAvailable(room, holderId));
+export const canAssignPresenter = (room, id) => canAssign(room, id, room.presenterId);
+export const canAssignChooser = (room, id) => canAssign(room, id, room.chooserId);
 
 // 主催者が落ちたときの後継者：接続中で一番早く参加した人。
 export function pickSuccessor(room, excludeId) {
@@ -64,11 +70,10 @@ export function pickNextInRotation(room) {
   return null;
 }
 
-export function pickRandomPresenter(room, excludeId) {
+// ランダム指名。本人も含めた、接続中の全員から選ぶ。
+export function pickRandomPresenter(room) {
   const all = connectedPlayers(room);
-  const pool = all.filter((p) => p.id !== excludeId);
-  const list = pool.length > 0 ? pool : all;
-  return list.length > 0 ? list[randomInt(list.length)] : null;
+  return all.length > 0 ? all[randomInt(all.length)] : null;
 }
 
 // 設定画面で並べ替えた順番を検証して整える。

@@ -191,8 +191,62 @@ test('出題者の委譲と、確定前の指名し直し', () => {
   room.setPresenter(B, C); // 出題者がさらに委譲
   assert.equal(room.presenterId, C);
   assert.throws(() => room.setPresenter(B, A), { code: 'not_allowed' });
-  room.setPresenter(A, A); // 主催者はいつでも指名し直せる
+  assert.throws(() => room.setPresenter(A, A), { code: 'not_allowed' }); // 任せたあとは、主催者でも変えられない
+  assert.equal(room.presenterId, C);
+  room.disconnect(C, 0); // 出題者が不在なら、主催者に権限が戻る
+  room.setPresenter(A, A);
   assert.equal(room.presenterId, A);
+});
+
+test('ランダム指名は、本人も含めた全員から選ぶ', () => {
+  const { room, ids } = setup(3);
+  const [A] = ids;
+  room.startRound(A);
+  const seen = new Set();
+  for (let i = 0; i < 300; i++) { room.randomPresenter(room.presenterId); seen.add(room.presenterId); } // 担当者本人が引く
+  assert.equal(seen.size, 3); // 引いた本人も、いまの担当者も含めて3人とも出る
+});
+
+test('出題者・選ぶ人は、次のラウンドにも引き継がれる（いなければ主催者）', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  room.startRound(A);
+  room.setPresenter(A, B);
+  room.setTopic(B, { hiragana: 'い', theme: '怖いもの' });
+  room.confirmTopic(B);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  room.setChooser(A, C);
+  room.choose(C, room.viewFor(C).pool.find((c) => c.text === 'a1').answerId);
+  room.advance(A);
+  room.startRound(A);
+  assert.equal(room.presenterId, B); // 出題者はそのまま
+  room.setTopic(B, { hiragana: 'う', theme: '甘いもの' });
+  room.confirmTopic(B);
+  room.submitAnswer(A, 'a2'); room.submitAnswer(B, 'b2'); room.submitAnswer(C, 'c2');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  assert.equal(room.chooserId, C); // 選ぶ人もそのまま
+  assert.equal(room.choice, null);
+});
+
+test('選ぶ人を任せたあとは、主催者でも変えられない。不在なら主催者に戻る／ランダムは本人も含む', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a1'); room.submitAnswer(B, 'b1'); room.submitAnswer(C, 'c1');
+  room.advance(A); room.revealAll(A); room.advance(A);
+  room.setChooser(A, B);
+  assert.throws(() => room.setChooser(A, C), { code: 'not_allowed' });
+  assert.throws(() => room.randomChooser(A), { code: 'not_allowed' });
+  const seen = new Set();
+  for (let i = 0; i < 300; i++) { room.randomChooser(room.chooserId); seen.add(room.chooserId); }
+  assert.equal(seen.size, 3);
+  room.setChooser(room.chooserId, B);
+  room.disconnect(B, 0);
+  room.tick(10 ** 9); // 猶予を過ぎる
+  assert.equal(room.chooserId, A); // 主催者に戻る
 });
 
 test('空き部屋は一定時間後に閉じ、記録は破棄される', () => {
