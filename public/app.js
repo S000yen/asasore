@@ -354,7 +354,7 @@ function rosterHtml() {
     const s = spriteOf(p);
     return `<div class="sprite c${i % 2}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
   }).join('');
-  const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)"></i>`).join('');
+  const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)">あ</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
 }
 let rosterAt = 0;
@@ -368,10 +368,10 @@ function rosterLoop(t) {
   // 弾：ときどき（少なめに）、左右どちらかの端から横に飛んでくる
   nextShot -= dt;
   if (nextShot <= 0) {
-    nextShot = 2.5 + Math.random() * 3.5;
+    nextShot = 2.5 + Math.random() * 3.5; // 30秒に7発ほど
     const dir = Math.random() < 0.5 ? 1 : -1, b = { id: ++bulletId, dir, x: dir > 0 ? 0 : W, y: 10 + Math.random() * Math.max(1, H - 20), ox: dir > 0 ? 0 : W, hit: false };
     bullets.push(b);
-    f.insertAdjacentHTML('beforeend', `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)"></i>`);
+    f.insertAdjacentHTML('beforeend', `<i class="bullet" data-b="${b.id}" style="transform:translate(${b.x}px,${b.y}px)">あ</i>`);
   }
   for (const b of bullets) {
     b.x += b.dir * BULLET_SPEED * dt;
@@ -403,9 +403,7 @@ function rosterLoop(t) {
     const launch = Math.sqrt(2 * GRAVITY * apex);
     s.vy += GRAVITY * dt;
     s.y += s.vy * dt;
-    // 横方向：ゆるやかな目標速度にもどりつつ（弾で速くなっても、だんだん落ち着く）、ときどき気まぐれに向きと速さを変える
-    s.drift -= dt;
-    if (s.drift <= 0) { s.drift = 1.5 + Math.random() * 3; s.tvx = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 55); }
+    // 横方向：ふだんはゆるやかに動き、弾で速くなっても、だんだんその速さに落ち着く（ランダム性は弾だけ）
     s.vx += (s.tvx - s.vx) * Math.min(1, dt * 0.9);
     s.x += s.vx * dt;
     if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx); s.tvx = Math.abs(s.tvx); } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); s.tvx = -Math.abs(s.tvx); }

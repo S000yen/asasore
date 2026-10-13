@@ -548,5 +548,5 @@ button.who:active { background: #fff; }
 .rec, .rec-row, .graph { min-width: 0; max-width: 100%; }
 .sheet > * { min-width: 0; max-width: 100%; }
 
-/* ロビーの弾：横から時々飛んでくる赤い玉 */
-.bullet { position: absolute; left: 0; top: 0; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--stamp); box-shadow: 0 0 8px 2px rgba(217, 58, 43, .5); pointer-events: none; will-change: transform; }
+/* ロビーの弾：アイコンの「あ」のタイル */
+.bullet { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 5px; background: var(--ink); color: var(--telop); font-family: var(--display); font-style: normal; font-size: 16px; line-height: 1; pointer-events: none; will-change: transform; }
