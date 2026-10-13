@@ -317,13 +317,78 @@ function lobbyHtml() {
   const v = view, s = v.settings;
   const rule = `${s.presenterMode === 'host' ? '毎回主催者が出題' : '参加順に出題'}・${s.identityMode === 'anonymous' ? '匿名' : '記名'}`;
   return `
-    <section class="card"><h2>参加者 ${v.players.length}人</h2>${chips(v.players)}</section>
+    <div class="listhead"><h2>参加者 ${v.players.length}人</h2></div>
+    ${rosterHtml()}
     ${v.me.isHost
       ? `<button class="rule" data-do="sheet" data-kind="settings"><span>ルール</span><span class="rule-body">${rule}</span><span class="chev">›</span></button>`
       : `<p class="rule static"><span>ルール</span><span class="rule-body">${rule}</span></p>`}
     <button class="btn small center" data-do="share">招待リンクを共有する</button>
 `;
 }
+
+// ロビーの参加者：DVDの待ち受けのように、全員が跳ね回る。
+// 壁や他の人に当たるたびに色が反転。同じ色どうしはぶつかって跳ね返り、違う色どうしはすり抜ける。
+const sprites = new Map(); // playerId -> {x,y,vx,vy,c,w,h,cool:Map}
+function spriteOf(p, i) {
+  let s = sprites.get(p.id);
+  if (!s) {
+    const ang = Math.random() * Math.PI * 2, sp = 55 + Math.random() * 35;
+    s = { x: 20 + Math.random() * 120, y: 20 + Math.random() * 120, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp || 40, c: i % 2, w: 0, h: 0, cool: new Map() };
+    sprites.set(p.id, s);
+  }
+  return s;
+}
+function rosterHtml() {
+  const players = view.players;
+  for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
+  const items = players.map((p, i) => {
+    const s = spriteOf(p, i);
+    return `<div class="sprite c${s.c}${p.connected ? '' : ' away'}" data-pid="${esc(p.id)}" style="transform:translate(${s.x}px,${s.y}px)">${esc(p.name)}${p.isHost ? '<span class="tag">主催者</span>' : ''}</div>`;
+  }).join('');
+  return `<div class="bfield roster" id="rosterField">${items}</div>`;
+}
+let rosterAt = 0;
+function rosterLoop(t) {
+  requestAnimationFrame(rosterLoop);
+  const dt = Math.min(0.05, (t - (rosterAt || t)) / 1000);
+  rosterAt = t;
+  const f = document.getElementById('rosterField');
+  if (!f || reduceMotion) return;
+  const els = [...f.querySelectorAll('.sprite')];
+  const list = els.map((el) => { const s = sprites.get(el.dataset.pid); if (s) { s.w = el.offsetWidth; s.h = el.offsetHeight; } return s && { el, s, id: el.dataset.pid }; }).filter(Boolean);
+  const W = f.clientWidth, H = f.clientHeight;
+  const flip = (o) => { o.s.c = 1 - o.s.c; o.el.classList.toggle('c0', o.s.c === 0); o.el.classList.toggle('c1', o.s.c === 1); };
+  for (const o of list) {
+    const s = o.s;
+    s.x += s.vx * dt; s.y += s.vy * dt;
+    const maxX = Math.max(0, W - s.w), maxY = Math.max(0, H - s.h);
+    let hit = false;
+    if (s.x < 0) { s.x = 0; s.vx = Math.abs(s.vx); hit = true; } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); hit = true; }
+    if (s.y < 0) { s.y = 0; s.vy = Math.abs(s.vy); hit = true; } else if (s.y > maxY) { s.y = maxY; s.vy = -Math.abs(s.vy); hit = true; }
+    if (hit) flip(o);
+  }
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const A = list[i].s, B = list[j].s;
+      if (A.c !== B.c) continue; // 違う色はすり抜ける
+      const ox = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+      const oy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+      if (ox <= 0 || oy <= 0) continue;
+      if (ox < oy) { // 横にぶつかった
+        const dir = A.x < B.x ? -1 : 1;
+        A.x += dir * ox / 2; B.x -= dir * ox / 2;
+        const va = A.vx; A.vx = Math.abs(B.vx) * dir || dir * 40; B.vx = -Math.abs(va) * dir || -dir * 40;
+      } else {
+        const dir = A.y < B.y ? -1 : 1;
+        A.y += dir * oy / 2; B.y -= dir * oy / 2;
+        const va = A.vy; A.vy = Math.abs(B.vy) * dir || dir * 40; B.vy = -Math.abs(va) * dir || -dir * 40;
+      }
+      flip(list[i]); flip(list[j]); // 当たったら、2人とも色が反転（すぐには再衝突しない）
+    }
+  }
+  for (const { el, s } of list) el.style.transform = `translate(${s.x}px,${s.y}px)`;
+}
+requestAnimationFrame(rosterLoop);
 
 // お題を待つあいだの、跳ね返り続けるロゴ（DVDプレイヤーの待ち受けのような）。位置は画面を作り直しても引き継ぐ。
 const bounce = { x: 24, y: 18, vx: 72, vy: 54, c: 0 };
