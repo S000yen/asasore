@@ -548,5 +548,5 @@ button.who:active { background: #fff; }
 .rec, .rec-row, .graph { min-width: 0; max-width: 100%; }
 .sheet > * { min-width: 0; max-width: 100%; }
 
-/* ロビーの弾：アイコンの「あ」のタイル */
-.bullet { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 5px; background: var(--ink); color: var(--telop); font-family: var(--display); font-style: normal; font-size: 16px; line-height: 1; pointer-events: none; will-change: transform; }
+/* ロビーの弾：黄色い「あ」の文字だけ */
+.bullet { position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 26px; height: 26px; margin: -13px 0 0 -13px; background: none; color: var(--telop); font-family: var(--display); font-style: normal; font-size: 24px; line-height: 1; pointer-events: none; will-change: transform; }
