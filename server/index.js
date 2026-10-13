@@ -122,6 +122,12 @@ function describe(room, ev) {
       return ev.role === 'chooser' ? `主催者が、選ぶ人の役割を戻しました` : `主催者が、出題者の役割を戻しました`;
     case 'chooser_changed':
       return `${name(ev.to)}さんが正解を選ぶ人になりました`;
+    case 'spectator_changed':
+      return ev.spectator ? `${name(ev.id)}さんが観戦になりました` : `${name(ev.id)}さんが参戦になりました`;
+    case 'spectator_pending':
+      return null; // 本人にだけ、画面で次のラウンドからと分かる
+    case 'room_reset':
+      return '主催者が部屋をリセットしました（記録と問題数を消しました）';
     case 'chooser_returned_to_host':
       return `選ぶ人が不在のため、主催者に戻りました`;
     case 'presenter_returned_to_host':
@@ -202,6 +208,12 @@ function handleAct(entry, pid, msg, clientId) {
       break;
     case 'choose':
       room.choose(pid, msg.answerId);
+      break;
+    case 'setSpectator':
+      ev = room.setSpectator(pid, msg.spectator);
+      break;
+    case 'resetRoom':
+      ev = room.resetRoom(pid);
       break;
     case 'react': { // 反応マークは、状態を変えず、全員に流すだけ
       const r = room.react(pid, msg.kind);
@@ -303,7 +315,7 @@ wss.on('connection', (ws) => {
         const code = String(msg.code ?? '').trim().toUpperCase();
         const entry = rooms.get(code);
         if (!entry) throw new RoomError('no_room', 'その部屋は見つかりません（閉じられた可能性があります）');
-        const p = entry.room.join(msg.playerId, msg.name);
+        const p = entry.room.join(msg.playerId, msg.name, Date.now(), { spectator: Boolean(msg.spectator) });
         attach(code, entry, p.id);
       } else if (msg.t === 'act') {
         const entry = rooms.get(ctx.code);

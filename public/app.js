@@ -48,7 +48,7 @@ let pendingLink = (() => {
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
 const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all' }; // 部屋をつくるときの設定（作成の前に選ぶ）
-const ui = { editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
+const ui = { joinWatch: false, editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
@@ -89,9 +89,9 @@ const sendRaw = (m) => {
 const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
-function sendJoin(code) {
+function sendJoin(code, spectator = false) {
   lastJoinCode = code;
-  sendRaw({ t: 'join', code, name: prefName, clientId, playerId: session?.code === code ? session.playerId : null });
+  sendRaw({ t: 'join', code, name: prefName, clientId, spectator, playerId: session?.code === code ? session.playerId : null });
 }
 
 function joinFromLink() {
@@ -407,6 +407,7 @@ function entryHtml() {
     </div></div>` : '';
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
+      <div class="seg join-seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${ui.joinWatch === val ? 'on' : ''}" data-do="setJoinWatch" data-val="${val}">${label}</button>`).join('')}</div>
       <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
     </div></div>` : '';
   return `<div class="entry">
@@ -513,7 +514,7 @@ function rosterHtml() {
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
   const items = players.map((p) => {
     const s = spriteOf(p);
-    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
+    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}${p.spectator ? ' spec' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
   }).join('');
   const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
@@ -620,13 +621,14 @@ function topicHtml() {
 
 function answerHtml() {
   const v = view;
-  return `
-    ${telop(v.topic)}
+  const box = v.me.spectator ? '' : `
     <div class="answerbox">
       <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
       <div class="box-actions">${v.myAnswer !== null ? '<button class="btn small" data-do="withdraw">取り下げる</button>' : '<button class="btn primary small" data-do="submitAnswer">回答する</button>'}</div>
-    </div>
-    ${progress('回答状況', v.players, (p) => p.answered, `<span class="elapsed" id="elapsed">${clock(elapsedNow())}</span>`)}`;
+    </div>`;
+  return `
+    ${telop(v.topic)}${box}
+    ${progress('回答状況', v.players.filter((p) => !p.spectator), (p) => p.answered, `<span class="elapsed" id="elapsed">${clock(elapsedNow())}</span>`)}`;
 }
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
@@ -696,7 +698,7 @@ function voteHtml() {
     ${telop(v.topic)}
     <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2>${groupToggleHtml()}</div>
     ${poolHtml()}${groupBarHtml()}
-    ${one ? '' : progress('投票状況', v.players, (p) => p.voted)}`;
+    ${one ? '' : progress('投票状況', v.players.filter((p) => !p.spectator), (p) => p.voted)}`;
 }
 
 function resultHtml() {
@@ -725,7 +727,7 @@ function actionBar() {
   switch (v.phase) {
     case 'lobby':
       if (host) {
-        const n = v.players.filter((p) => p.connected).length;
+        const n = v.players.filter((p) => p.connected && !p.spectator).length;
         btn = `<button class="btn primary block" data-do="advance" ${n < 3 ? 'disabled' : ''}>はじめる</button>`;
         meta = n < 3 ? '3人以上で始められます' : '';
       }
@@ -767,6 +769,7 @@ function actionBar() {
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="chooser">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
+  if (!who && !host && v.me.spectator && !btn) who = `<button class="who" data-do="toggleSpectate"><span class="who-text">観戦中</span><span class="who-edit">参戦する</span></button>`;
   return btn || who ? `<div class="action"><div>${who}${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
 }
 
@@ -788,10 +791,12 @@ function sheetHtml() {
       ${host ? `<div class="group"><p class="group-label">主催者</p>
         ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
         ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
+        ${item('', 'data-do="resetRoom"', '記録をリセット')}
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
         ${item('', 'data-do="sheet" data-kind="remove"', '参加者を外す')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
+      ${host ? '' : `<div class="group">${item('', 'data-do="toggleSpectate"', (v.me.nextSpectator ?? v.me.spectator) ? '参戦に切り替える' : '観戦に切り替える', v.me.nextSpectator !== null && v.me.nextSpectator !== undefined ? '次のラウンドから' : '')}</div>`}
       <div class="group">
         ${item('danger', 'data-do="leave"', '退出する')}
         ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
@@ -826,7 +831,7 @@ function sheetHtml() {
   } else if (k === 'settings') {
     const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
     const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${s[key] === val ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
-    const ids = s.order.filter((id) => v.players.some((p) => p.id === id));
+    const ids = s.order.filter((id) => v.players.some((p) => p.id === id && !p.spectator));
     const order = s.presenterMode === 'rotation' ? `<h2>順番（上から）</h2><ul class="order">${ids.map((id, i) => `<li>${esc(v.players.find((p) => p.id === id).name)}<span>
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="-1" ${i === 0 || locked ? 'disabled' : ''} aria-label="上へ">↑</button>
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="1" ${i === ids.length - 1 || locked ? 'disabled' : ''} aria-label="下へ">↓</button></span></li>`).join('')}</ul>` : '';
@@ -843,11 +848,11 @@ function sheetHtml() {
   } else if (k === 'allow') {
     inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
   } else if (k === 'chooser') {
-    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
+    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && !p.spectator && p.id !== v.chooserId))}</div>`;
   } else if (k === 'presenter') {
     inner = `<h3>出題者を指名する</h3><div class="menu">
       <button class="btn" data-do="randomPresenter">ランダムで指名する</button>
-      ${pick('presenter', v.players.filter((p) => p.connected && p.id !== v.presenterId))}</div>`;
+      ${pick('presenter', v.players.filter((p) => p.connected && !p.spectator && p.id !== v.presenterId))}</div>`;
   }
   return `<div class="scrim" data-do="scrim"><div class="sheet"><button class="x" data-do="closeSheet" aria-label="閉じる">×</button>${inner}</div></div>`;
 }
@@ -898,8 +903,9 @@ const handlers = {
     const code = drafts.code.trim().toUpperCase();
     if (code.length < 4) return toast('部屋コードを4文字で入力してください');
     autoJoin = true;
-    sendJoin(code);
+    sendJoin(code, ui.joinWatch);
   },
+  setJoinWatch(d) { ui.joinWatch = d.val === 'true'; render(); },
   resume() {
     autoJoin = true; endMessage = null;
     sendJoin(session.code);
@@ -942,6 +948,19 @@ const handlers = {
     render();
   },
   randomChooser() { ui.sheet = null; act('randomChooser'); render(); },
+  // 観戦⇔参戦。回答中までは、すぐ。それ以降は次のラウンドから。
+  toggleSpectate() {
+    ui.sheet = null;
+    const want = !(view.me.nextSpectator ?? view.me.spectator);
+    if (!act('setSpectator', { spectator: want })) return;
+    if (!['lobby', 'topic', 'answer', 'result'].includes(view.phase) && want !== view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
+    render();
+  },
+  resetRoom() {
+    ui.sheet = null;
+    ui.modal = { body: '記録と問題数を消して、最初の画面に戻します。参加者と設定は、そのまま残ります。', ok: 'リセットする', danger: true, onOk: () => act('resetRoom') };
+    render();
+  },
   reportTopic() {
     const t = view.topic?.theme;
     if (!t || drafts.theme.trim() !== t) return toast('書き換えた題材は報告できません');

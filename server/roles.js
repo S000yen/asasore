@@ -22,9 +22,21 @@ export function connectedPlayers(room) {
   return activePlayers(room).filter((p) => p.connected);
 }
 
+// 観戦中でない参加者（回答・投票・出題などの、ゲームに加わる人）
+export const isGamePlayer = (p) => isActive(p) && !p.spectator;
+export const gamePlayers = (room) => activePlayers(room).filter((p) => !p.spectator);
+export const connectedGamePlayers = (room) => gamePlayers(room).filter((p) => p.connected);
+
 export function getActive(room, id) {
   const p = room.players.get(id);
   if (!isActive(p)) throw new RoomError('no_such_player', '参加者が見つかりません');
+  return p;
+}
+
+// ゲームに加わる人だけ（観戦中は、回答・投票などができない）
+export function getPlayer(room, id) {
+  const p = getActive(room, id);
+  if (p.spectator) throw new RoomError('spectating', '観戦中はできません。参戦に切り替えてください');
   return p;
 }
 
@@ -41,7 +53,7 @@ export function requirePresenter(room, id) {
 // 担当者（出題者・選ぶ人）が、いま務められる状態か（参加していて、接続中）
 export const holderAvailable = (room, holderId) => {
   const p = room.players.get(holderId);
-  return isActive(p) && p.connected;
+  return isGamePlayer(p) && p.connected;
 };
 
 // 担当の指名・委譲ができるのは、いまの担当者だけ。担当者が不在のときは、主催者に権限が戻る。
@@ -53,7 +65,7 @@ export const canAssignChooser = (room, id) => canAssign(room, id, room.chooserId
 export function pickSuccessor(room, excludeId) {
   const list = connectedPlayers(room)
     .filter((p) => p.id !== excludeId)
-    .sort((a, b) => a.seq - b.seq);
+    .sort((a, b) => (a.spectator ? 1 : 0) - (b.spectator ? 1 : 0) || a.seq - b.seq); // 参戦中の人を先に（観戦しかいなければ、その人が主催者になり参戦に切り替わる）
   return list[0] ?? null;
 }
 
@@ -65,14 +77,14 @@ export function pickNextInRotation(room) {
   for (let i = 1; i <= order.length; i++) {
     const id = order[(start + i + order.length) % order.length];
     const p = room.players.get(id);
-    if (isActive(p) && p.connected) return p;
+    if (isGamePlayer(p) && p.connected) return p;
   }
   return null;
 }
 
 // ランダム指名。本人も含めた、接続中の全員から選ぶ。
 export function pickRandomPresenter(room) {
-  const all = connectedPlayers(room);
+  const all = connectedGamePlayers(room);
   return all.length > 0 ? all[randomInt(all.length)] : null;
 }
 

@@ -621,3 +621,113 @@ test('反応マーク：開示中だけ。決まった種類だけ。連打は�
   room.advance(A); // 投票へ
   assert.throws(() => room.react(B, 'laugh'), { code: 'bad_phase' }); // 投票中は使えない
 });
+
+// ---------- 観戦／参戦と、部屋のリセット ----------
+
+test('観戦：観戦で入れる。回答・投票はできず、人数にも数えない。反応マークは使える', () => {
+  const room = new Room('TEST');
+  const A = room.join(null, 'A', 1).id, B = room.join(null, 'B', 2).id, C = room.join(null, 'C', 3).id;
+  const W = room.join(null, 'W', 4, { spectator: true }).id;
+  assert.equal(room.viewFor(W).me.spectator, true);
+  assert.equal(room.viewFor(A).players.find((p) => p.id === W).spectator, true);
+  room.startRound(A);
+  room.setTopic(A, { hiragana: 'あ', theme: '面白いもの' });
+  room.confirmTopic(A);
+  assert.throws(() => room.submitAnswer(W, 'x'), { code: 'spectating' });
+  [A, B, C].forEach((id, i) => room.submitAnswer(id, ['a', 'b', 'c'][i]));
+  assert.equal(room.advance(A).needConfirm, false); // 観戦者は未回答に数えない
+  assert.ok(room.react(W, 'like')); // 開示中は反応マークを送れる
+  room.revealAll(A);
+  room.advance(A);
+  assert.throws(() => room.vote(W, room.viewFor(A).pool[0].answerId), { code: 'spectating' });
+  assert.equal(room.viewFor(W).pool.some((c) => c.canVote), false);
+  [A, B, C].forEach((id) => { const c = room.viewFor(id).pool.find((x) => x.canVote); room.vote(id, c.answerId); });
+  assert.equal(room.advance(A).needConfirm, false); // 観戦者は未投票に数えない
+});
+
+test('観戦：最初の人（主催者）は観戦で入れない。主催者は観戦に切り替えられない', () => {
+  const room = new Room('TEST');
+  const A = room.join(null, 'A', 1, { spectator: true }).id;
+  assert.equal(room.viewFor(A).me.spectator, false);
+  assert.throws(() => room.setSpectator(A, true), { code: 'host_plays' });
+});
+
+test('観戦：人数は参戦の人だけで数える。観戦から参戦へ切り替えると始められる', () => {
+  const room = new Room('TEST');
+  const A = room.join(null, 'A', 1).id, B = room.join(null, 'B', 2).id;
+  const W = room.join(null, 'W', 3, { spectator: true }).id;
+  assert.throws(() => room.startRound(A), { code: 'min_players' }); // 参戦は2人だけ
+  room.setSpectator(W, false); // ロビーなら、すぐ参戦
+  assert.equal(room.viewFor(W).me.spectator, false);
+  room.startRound(A);
+});
+
+test('観戦：回答中までは、すぐ切り替わる（回答済みの人が観戦になると回答は取り下げ）', () => {
+  const room = new Room('TEST');
+  const [A, B, C, D] = ['A', 'B', 'C', 'D'].map((n, i) => room.join(null, n, i + 1).id);
+  room.startRound(A);
+  room.setTopic(A, { hiragana: 'あ', theme: 'x' });
+  assert.throws(() => room.setSpectator(A, true), { code: 'host_plays' });
+  room.confirmTopic(A);
+  room.submitAnswer(D, 'd');
+  const ev = room.setSpectator(D, true); // 回答中なので、すぐ
+  assert.equal(ev.type, 'spectator_changed');
+  assert.equal(room.viewFor(D).me.spectator, true);
+  assert.equal(room.viewFor(D).myAnswer, null);
+  room.setSpectator(D, false);
+  room.submitAnswer(D, 'd2'); // 参戦に戻れば、また回答できる
+});
+
+test('観戦：開示から先で頼むと、次のラウンドから切り替わる。取り消しもできる', () => {
+  const room = new Room('TEST');
+  const [A, B, C, D] = ['A', 'B', 'C', 'D'].map((n, i) => room.join(null, n, i + 1).id);
+  room.startRound(A);
+  room.setTopic(A, { hiragana: 'あ', theme: 'x' });
+  room.confirmTopic(A);
+  [A, B, C, D].forEach((id, i) => room.submitAnswer(id, 'abcd'[i]));
+  room.advance(A); // 開示へ
+  const ev = room.setSpectator(D, true);
+  assert.equal(ev.type, 'spectator_pending');
+  assert.equal(room.viewFor(D).me.spectator, false); // まだ参戦のまま
+  assert.equal(room.viewFor(D).me.nextSpectator, true);
+  room.setSpectator(D, false); // 取り消し
+  assert.equal(room.viewFor(D).me.nextSpectator, null);
+  room.setSpectator(D, true);
+  room.revealAll(A); room.advance(A);
+  [A, B, C, D].forEach((id) => { const c = room.viewFor(id).pool.find((x) => x.canVote); room.vote(id, c.answerId); });
+  room.advance(A); // 結果へ
+  room.startRound(A); // 次のラウンドから観戦
+  assert.equal(room.viewFor(D).me.spectator, true);
+  assert.equal(room.viewFor(D).me.nextSpectator, null);
+});
+
+test('観戦：出題者は観戦できず、観戦中の人は出題者・選ぶ人に任せられない。ランダムにも当たらない', () => {
+  const room = new Room('TEST');
+  const [A, B, C, D] = ['A', 'B', 'C', 'D'].map((n, i) => room.join(null, n, i + 1).id);
+  room.setSpectator(D, true);
+  room.startRound(A);
+  assert.throws(() => room.setPresenter(A, D), { code: 'spectating' });
+  for (let i = 0; i < 30; i++) { room.randomPresenter(A); assert.notEqual(room.presenterId, D); if (room.presenterId !== A) room.reclaimRole(A); } // 主催者に戻してから、また引く
+  room.setPresenter(A, B);
+  assert.throws(() => room.setSpectator(B, true), { code: 'presenter_plays' });
+});
+
+test('部屋のリセット：記録・問題数・使った題材を消してロビーへ。参加者と設定は残る', () => {
+  const { room, ids } = setup(3);
+  const [A, B] = ids;
+  toReveal(room, ids, ['ねこ', 'いぬ', 'うま']);
+  room.advance(A);
+  ids.forEach((id) => { const c = room.viewFor(id).pool.find((x) => x.canVote); room.vote(id, c.answerId); });
+  room.advance(A); // 結果へ
+  assert.equal(room.viewFor(A).history.length, 1);
+  assert.throws(() => room.resetRoom(B), { code: 'not_host' });
+  assert.equal(room.resetRoom(A).type, 'room_reset');
+  const v = room.viewFor(A);
+  assert.equal(v.phase, 'lobby');
+  assert.equal(v.round, 0);
+  assert.equal(v.history.length, 0);
+  assert.equal(v.players.length, 3);
+  assert.equal(room.usedThemes.size, 0);
+  room.startRound(A); // そのまま、第1問から始められる
+  assert.equal(room.viewFor(A).round, 1);
+});
