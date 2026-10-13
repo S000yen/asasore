@@ -170,6 +170,9 @@ function handleAct(entry, pid, msg) {
     case 'vote':
       room.vote(pid, msg.answerId);
       break;
+    case 'rename':
+      room.rename(pid, msg.name);
+      break;
     case 'transferHost':
       ev = room.transferHost(pid, msg.to);
       break;

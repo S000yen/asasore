@@ -88,6 +88,7 @@ textarea { resize: none; }
 .btn.small { min-height: 44px; padding: 0 14px; font-size: 14px; }
 .btn[disabled] { opacity: .4; cursor: default; }
 .btn.block { width: 100%; }
+.btn.big { min-height: 58px; font-size: 18px; }
 .link { border: 0; background: none; padding: 8px 4px; color: var(--ink-soft); text-decoration: underline; }
 
 /* 下に固定する主操作 */

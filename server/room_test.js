@@ -198,3 +198,48 @@ test('空き部屋は一定時間後に閉じ、記録は破棄される', () =>
   assert.equal(ev.at(-1).type, 'room_closed');
   assert.equal(room.players.size, 0);
 });
+
+test('名前が空なら「ユーザーN」になり、空いている最小の番号が付く', () => {
+  const room = new Room('TEST');
+  const a = room.join(null, '');
+  const b = room.join(null, '   ');
+  const c = room.join(null, undefined);
+  assert.deepEqual([a.name, b.name, c.name], ['ユーザー1', 'ユーザー2', 'ユーザー3']);
+  room.rename(b.id, 'ぼく'); // 2番が空いたら、次の人に回る
+  assert.equal(room.join(null, '').name, 'ユーザー2');
+});
+
+test('入室時に名前が重なったら、末尾に番号を付けて入れる', () => {
+  const room = new Room('TEST');
+  room.join(null, 'とーや');
+  assert.equal(room.join(null, 'とーや').name, 'とーや2');
+  assert.equal(room.join(null, 'とーや').name, 'とーや3');
+});
+
+test('表示名の変更：参加中ならいつでも可、空・長すぎ・重複は断る', () => {
+  const { room, ids } = setup(2);
+  const [A, B] = ids;
+  room.rename(B, 'ぼく');
+  assert.equal(room.players.get(B).name, 'ぼく');
+  assert.equal(room.viewFor(A).players.find((p) => p.id === B).name, 'ぼく'); // 他の人の画面にも反映
+  assert.throws(() => room.rename(B, '  '), { code: 'bad_name' });
+  assert.throws(() => room.rename(B, 'あ'.repeat(21)), { code: 'bad_name' });
+  assert.throws(() => room.rename(B, 'A'), { code: 'name_taken' }); // 主催者の名前
+  room.rename(B, 'ぼく'); // 自分の今の名前に変えるのは問題なし
+  room.removePlayer(A, B);
+  assert.throws(() => room.rename(B, 'x'), { code: 'no_such_player' }); // 外された人は変えられない
+});
+
+test('回答の途中で名前を変えても、匿名モードの作者は漏れない', () => {
+  const { room, ids } = setup(3);
+  const [A, B] = ids;
+  room.setSettings(A, { identityMode: 'anonymous' });
+  toAnswerPhase(room, ids);
+  room.submitAnswer(B, 'こたえ');
+  room.rename(B, 'べつの名前');
+  room.advance(A, { force: true }); // 回答 → 開示
+  room.revealAll(A);
+  const seen = JSON.stringify(room.viewFor(A));
+  assert.equal(seen.includes('べつの名前'), true); // 参加者一覧には出る
+  assert.equal(room.viewFor(A).answers.every((a) => !a.author), true); // 回答に作者は付かない
+});

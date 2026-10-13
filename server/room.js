@@ -79,11 +79,11 @@ export class Room {
       known.disconnectedAt = null;
       return known;
     }
-    const clean = String(name ?? '').trim().slice(0, MAX_NAME_LEN);
-    if (!clean) throw new RoomError('bad_name', '名前を入力してください');
+    // 名前が空なら「ユーザーN」。端末に残っていた名前が他の人と重なったら、末尾に番号を付ける。
+    const wanted = String(name ?? '').trim().slice(0, MAX_NAME_LEN);
     const p = {
       id: randomUUID(),
-      name: clean,
+      name: wanted ? this._dedupeName(wanted) : this._defaultName(),
       seq: this.nextSeq++,
       joinedAt: now,
       connected: true,
@@ -97,6 +97,36 @@ export class Room {
       this.presenterId = p.id;
     }
     return p;
+  }
+
+  // 使われていない最小の番号で「ユーザーN」を作る（削除された人の名前とも重ならないようにする）
+  _defaultName() {
+    const used = new Set([...this.players.values()].map((p) => p.name));
+    for (let n = 1; ; n++) {
+      if (!used.has(`ユーザー${n}`)) return `ユーザー${n}`;
+    }
+  }
+
+  _dedupeName(wanted, exceptId) {
+    const used = new Set([...this.players.values()].filter((p) => p.id !== exceptId).map((p) => p.name));
+    if (!used.has(wanted)) return wanted;
+    for (let n = 2; ; n++) {
+      const suffix = String(n);
+      const cand = wanted.slice(0, MAX_NAME_LEN - suffix.length) + suffix;
+      if (!used.has(cand)) return cand;
+    }
+  }
+
+  // 表示名の変更。参加中の人なら、いつでも自分の名前を変えられる。
+  rename(by, name) {
+    const p = getActive(this, by);
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new RoomError('bad_name', '表示名を入力してください');
+    if (clean.length > MAX_NAME_LEN) throw new RoomError('bad_name', `表示名は${MAX_NAME_LEN}文字までです`);
+    const taken = [...this.players.values()].some((q) => q.id !== by && !q.removed && q.name === clean);
+    if (taken) throw new RoomError('name_taken', 'その名前はすでに使われています');
+    p.name = clean;
+    return { type: 'renamed', id: by };
   }
 
   disconnect(playerId, now = Date.now()) {

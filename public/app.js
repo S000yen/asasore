@@ -3,7 +3,8 @@
 // ---------- 状態 ----------
 
 const STORE = 'asaso.session';
-const INPUT_IDS = ['nameInput', 'codeInput', 'answerInput', 'hiraInput', 'themeInput'];
+const NAME_STORE = 'asaso.name'; // 自分で付けた表示名（次の部屋でも使う）。未設定なら、部屋ごとに「ユーザーN」になる
+const INPUT_IDS = ['codeInput', 'renameInput', 'answerInput', 'hiraInput', 'themeInput'];
 const $app = document.getElementById('app');
 
 const loadSession = () => {
@@ -12,19 +13,29 @@ const loadSession = () => {
 const saveSession = (s) => {
   try { s ? localStorage.setItem(STORE, JSON.stringify(s)) : localStorage.removeItem(STORE); } catch { /* 保存できなくても動く */ }
 };
+const loadName = () => {
+  try { return localStorage.getItem(NAME_STORE) ?? ''; } catch { return ''; }
+};
+const saveName = (n) => {
+  try { localStorage.setItem(NAME_STORE, n); } catch { /* 保存できなくても動く */ }
+};
 
 let ws = null;
 let view = null;            // サーバーから届いた自分用の状態
-let session = loadSession(); // { code, playerId, name }（端末に残す。再接続で同じ参加者として戻るため）
+let session = loadSession(); // { code, playerId }（端末に残す。再接続で同じ参加者として戻るため）
+let prefName = loadName();   // 自分で決めた表示名。空ならサーバーが「ユーザーN」を付ける
 let autoJoin = true;
 let backoff = 500;
 let endMessage = null;       // 入室画面の代わりに出す案内（外された、部屋が閉じた、など）
-const ui = { sheet: null, modal: null, toast: null, connected: false };
-const drafts = {
-  name: session?.name ?? '',
-  code: (new URLSearchParams(location.search).get('code') ?? '').toUpperCase().slice(0, 4),
-  answer: '', hiragana: '', theme: '',
-};
+let lastJoinCode = null;     // 最後に入ろうとした部屋（見つからなかったとき、どの記録を消すか決めるため）
+
+// 招待リンク（/?code=XXXX）から開いたら、コードも名前も入れずに、そのまま入る
+let pendingLink = (() => {
+  const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
+  return /^[A-Z0-9]{4}$/.test(c) ? c : null;
+})();
+const ui = { sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
+const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
 
@@ -39,7 +50,8 @@ function connect() {
   sock.onopen = () => {
     backoff = 500;
     ui.connected = true;
-    if (session && autoJoin) sendRaw({ t: 'join', code: session.code, name: session.name, playerId: session.playerId });
+    if (pendingLink) joinFromLink();
+    else if (session && autoJoin) sendJoin(session.code);
     render();
   };
   sock.onmessage = (e) => {
@@ -58,11 +70,26 @@ function connect() {
 const sendRaw = (m) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(m)); };
 const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 
+// 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
+function sendJoin(code) {
+  lastJoinCode = code;
+  sendRaw({ t: 'join', code, name: prefName, playerId: session?.code === code ? session.playerId : null });
+}
+
+function joinFromLink() {
+  const code = pendingLink;
+  pendingLink = null;
+  try { history.replaceState(null, '', location.pathname); } catch { /* 書き換えられなくても動く */ }
+  autoJoin = true;
+  ui.joining = true;
+  sendJoin(code);
+}
+
 // スマホはアプリを切り替えると通信が止まる。戻ってきたら接続を確かめ、入り直して最新の状態をもらう。
 function wake() {
   if (document.hidden) return;
   if (!ws || ws.readyState > 1) { connect(); return; }
-  if (view && session) sendRaw({ t: 'join', code: session.code, name: session.name, playerId: session.playerId });
+  if (view && session) sendJoin(session.code);
 }
 document.addEventListener('visibilitychange', wake);
 window.addEventListener('online', wake);
@@ -71,19 +98,33 @@ window.addEventListener('pageshow', wake);
 function onMessage(m) {
   switch (m.t) {
     case 'joined':
-      session = { code: m.code, playerId: m.playerId, name: drafts.name.trim() || session?.name || '' };
+      session = { code: m.code, playerId: m.playerId };
       saveSession(session);
       endMessage = null;
+      ui.joinOpen = false;
       return;
     case 'state':
       view = m.view;
+      ui.joining = false;
+      if (ui.pendingRename !== null && view.me.name === ui.pendingRename) { // 表示名の変更が通った
+        prefName = ui.pendingRename;
+        saveName(prefName);
+        ui.pendingRename = null;
+        if (ui.sheet?.kind === 'rename') ui.sheet = null;
+        toast('表示名を変えました');
+      }
       syncDrafts();
       break;
     case 'notice':
       toast(m.text);
       return;
     case 'error':
-      if (m.code === 'no_room') { session = null; saveSession(null); view = null; }
+      ui.joining = false;
+      ui.pendingRename = null;
+      if (m.code === 'no_room') { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
+        if (!session || session.code === lastJoinCode) { session = null; saveSession(null); }
+        view = null;
+      }
       if (m.code === 'banned') {
         view = null; autoJoin = false;
         endMessage = { title: 'この部屋には入れません', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
@@ -168,19 +209,23 @@ const telop = (t) => t
 function entryHtml() {
   if (endMessage) return endHtml();
   const resume = session ? `<button class="btn block" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
+  const body = ui.joining
+    ? '<p class="hint">部屋に入っています…</p>'
+    : `<div class="stack">
+        <button class="btn primary block big" data-do="create">部屋をつくる</button>
+        <button class="btn block big" data-do="openJoin">部屋に入る</button>
+      </div>
+      ${resume}
+      <p class="hint">名前は「ユーザー1」のように自動でつきます。部屋に入ってから、メニューで変えられます。</p>`;
+  const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet">
+      <label class="field"><span>部屋コード（4文字）</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
+      <div class="btns" style="margin-top:16px"><button class="btn" data-do="closeJoin">やめる</button><button class="btn primary" data-do="join">入る</button></div>
+    </div></div>` : '';
   return `<div class="entry">
     <h1 class="title">朝からそれ正解<small>頭文字のお題に、みんなで「正解」を出し合うゲームです。</small></h1>
-    <div class="card stack">
-      <label class="field"><span>名前</span><input id="nameInput" type="text" data-draft="name" maxlength="20" autocomplete="nickname" value="${esc(drafts.name)}"></label>
-      <button class="btn primary block" data-do="create">部屋をつくる</button>
-    </div>
-    <div class="card stack">
-      <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocomplete="off" value="${esc(drafts.code)}"></label>
-      <button class="btn block" data-do="join">コードで入る</button>
-    </div>
-    ${resume}
+    ${body}
     ${ui.connected ? '' : '<p class="hint">サーバーにつなぎ直しています。</p>'}
-    ${toastHtml()}
+    ${dialog}${toastHtml()}
   </div>`;
 }
 
@@ -357,6 +402,7 @@ function sheetHtml() {
   if (k === 'menu') {
     inner = `<h3>メニュー</h3><div class="menu">
       <button class="btn" data-do="share">招待リンクを共有する</button>
+      <button class="btn" data-do="openRename">表示名を変える（いまは「${esc(v.me.name)}」）</button>
       ${host ? `
         <button class="btn" data-do="sheet" data-kind="settings">部屋設定</button>
         <button class="btn" data-do="sheet" data-kind="transfer">主催者を譲渡する</button>
@@ -365,6 +411,11 @@ function sheetHtml() {
         <button class="btn danger" data-do="closeRoom">部屋を閉じる</button>` : ''}
       <button class="btn danger" data-do="leave">退出する</button>
     </div>`;
+  } else if (k === 'rename') {
+    inner = `<h3>表示名を変える</h3><div class="stack">
+      <label class="field"><span>この部屋のみんなに見える名前（20文字まで）</span><input id="renameInput" type="text" data-draft="rename" maxlength="20" autocomplete="off" value="${esc(drafts.rename)}"></label>
+      <button class="btn primary block" data-do="doRename">変更する</button>
+      <p class="hint">次に別の部屋へ入るときも、この名前が使われます。</p></div>`;
   } else if (k === 'settings') {
     const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
     const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${s[key] === val ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
@@ -419,21 +470,39 @@ function confirmPick(kind, id) {
 
 const handlers = {
   create() {
-    const name = drafts.name.trim();
-    if (!name) return toast('名前を入力してください');
     autoJoin = true;
-    sendRaw({ t: 'create', name });
+    sendRaw({ t: 'create', name: prefName });
   },
+  openJoin() {
+    ui.joinOpen = true;
+    render();
+    document.getElementById('codeInput')?.focus(); // タップの流れの中でフォーカスすると、iPhoneでもキーボードが出る
+  },
+  closeJoin() { ui.joinOpen = false; render(); },
   join() {
-    const name = drafts.name.trim(), code = drafts.code.trim().toUpperCase();
-    if (!name) return toast('名前を入力してください');
+    const code = drafts.code.trim().toUpperCase();
     if (code.length < 4) return toast('部屋コードを4文字で入力してください');
     autoJoin = true;
-    sendRaw({ t: 'join', code, name, playerId: session?.code === code ? session.playerId : null });
+    sendJoin(code);
   },
   resume() {
     autoJoin = true; endMessage = null;
-    sendRaw({ t: 'join', code: session.code, name: session.name, playerId: session.playerId });
+    sendJoin(session.code);
+  },
+  openRename() {
+    drafts.rename = view.me.name;
+    ui.sheet = { kind: 'rename' };
+    render();
+    document.getElementById('renameInput')?.focus();
+  },
+  doRename() {
+    const name = drafts.rename.trim();
+    if (!name) return toast('表示名を入力してください');
+    if (name === view.me.name) { // 変わっていなくても、この名前を次の部屋以降の既定にする
+      prefName = name; saveName(name); ui.sheet = null; render(); return;
+    }
+    ui.pendingRename = name;
+    act('rename', { name });
   },
   backToEntry() { endMessage = null; render(); },
   openMenu() { ui.sheet = { kind: 'menu' }; render(); },
@@ -467,10 +536,10 @@ const handlers = {
   modalOk() { const m = ui.modal; ui.modal = null; render(); m?.onOk?.(); },
   modalCancel() { ui.modal = null; render(); },
   async share() {
-    const url = `${location.origin}/?code=${view.code}`;
+    const url = `${location.origin}/?code=${view.code}`; // 開くだけで、この部屋にそのまま入れる
     ui.sheet = null;
     try {
-      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `部屋コード ${view.code}`, url }); return; }
+      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `朝からそれ正解の部屋に入る（部屋コード ${view.code}）`, url }); return; }
     } catch { return; } // 共有をやめた場合
     try { await navigator.clipboard.writeText(url); toast('招待リンクをコピーしました'); } catch { toast(url); }
   },
@@ -508,6 +577,12 @@ $app.addEventListener('input', (e) => {
     if (tile) tile.textContent = drafts.hiragana || '？';
     if (theme) theme.textContent = drafts.theme;
   }
+});
+
+$app.addEventListener('keydown', (e) => { // Enter で、コード入力と表示名変更を確定する（変換中は除く）
+  if (e.key !== 'Enter' || e.isComposing) return;
+  if (e.target.id === 'codeInput') { e.preventDefault(); handlers.join(); }
+  if (e.target.id === 'renameInput') { e.preventDefault(); handlers.doRename(); }
 });
 
 $app.addEventListener('compositionstart', () => { composing = true; });
