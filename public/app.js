@@ -348,7 +348,7 @@ function answerHtml() {
     ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
 
-// 自分の回答は、開示・投票・結果のあいだ、常に一番上に出す
+// 自分の回答は、開示のあいだ、一番上に出す
 const myCard = () => (view.myAnswer !== null
   ? `<div class="mycard"><span class="mycard-label">あなたの回答</span><span class="text ${sizeOf(view.myAnswer)}">${esc(view.myAnswer)}</span></div>`
   : '');
@@ -389,7 +389,6 @@ function voteHtml() {
   const v = view;
   return `
     ${telop(v.topic)}
-    ${myCard()}
     <div class="listhead"><h2>いちばん「正解」だと思う回答をタップ</h2></div>
     ${poolHtml()}
     ${progress('投票状況', v.players, (p) => p.voted)}`;
@@ -407,7 +406,6 @@ function resultHtml() {
   }).join('');
   return `
     ${telop(v.topic)}
-    ${myCard()}
     ${r.tie ? '<p class="hint">同票でした。同票の回答がどれも正解です。</p>' : ''}
     ${r.winners.length === 0 ? '<p class="hint">投票がなかったため、正解は決まりませんでした。</p>' : ''}
     <section class="stack">${rows}</section>`;
