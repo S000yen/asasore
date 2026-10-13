@@ -458,3 +458,8 @@ button.who:active { background: #fff; }
 .blogo.c3 { background: var(--dawn); }
 .blogo.c0 .bt { color: var(--telop); } .blogo.c1 .bt { color: var(--telop); } .blogo.c2 .bt { color: #fff; } .blogo.c3 .bt { color: var(--telop); }
 .blogo { border-color: #0e1630; }
+
+/* 入室ボタンは、タイトルのテロップより少しひかえめに（2つの間隔はそのまま） */
+.entry-btns { width: 86%; margin: 0 auto; }
+.bigbtn { min-height: 36vw; max-height: 170px; padding: 10px 6px; }
+@media (min-width: 480px) { .bigbtn { min-height: 150px; } }
