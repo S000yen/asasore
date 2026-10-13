@@ -380,28 +380,24 @@ function answerHtml() {
     ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
 
-// 自分の回答は、開示のあいだ、一番上に出す
-const myCard = () => (view.myAnswer !== null
-  ? `<div class="mycard"><span class="mycard-label">あなたの回答</span><span class="text ${sizeOf(view.myAnswer)}">${esc(view.myAnswer)}</span></div>`
-  : '');
-
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
 function poolHtml() {
   const v = view, anon = v.settings.identityMode === 'anonymous';
   const cells = v.pool.map((c) => {
+    const me = c.mine ? ' mine' : '';
     if (!c.revealed) {
-      const name = c.author ? `<span class="cell-name">${esc(c.author)}</span>` : '';
-      const cls = `cell dark${c.mine ? ' mine' : ''}`;
+      const cls = `cell dark${me}`;
       return c.canReveal
-        ? `<button class="${cls} tap" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}">${name}<span class="cell-hint">タップで開示</span></button>`
-        : `<div class="${cls}">${name}</div>`;
+        ? `<button class="${cls} tap" aria-label="開示" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}"></button>`
+        : `<div class="${cls}"></div>`;
     }
     const wide = [...c.text].length > 10 ? ' wide' : '';
     const picked = v.myVote === c.answerId;
-    const body = `${c.mine ? '<span class="state me">あなた</span>' : ''}${picked ? '<span class="state pick">投票</span>' : ''}<span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}`;
+    const body = `<span class="tile">${esc([...c.text][0] || '')}</span><span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
+    const cls = `cell open${wide}${me}${picked ? ' picked' : ''}`;
     return c.canVote
-      ? `<button class="cell open${wide}${picked ? ' picked' : ''}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
-      : `<div class="cell open${wide}${c.mine ? ' mine' : ''}">${body}</div>`;
+      ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
+      : `<div class="${cls}">${body}</div>`;
   }).join('');
   return `<section class="pool">${cells}</section>`;
 }
@@ -411,7 +407,6 @@ function revealHtml() {
   const total = v.pool.length;
   return `
     ${telop(v.topic)}
-    ${myCard()}
     <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
     ${poolHtml()}
 `;

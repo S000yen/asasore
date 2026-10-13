@@ -66,6 +66,7 @@ export class Room {
     this.votes = new Map(); // voterId -> answerId
     this.revealCounter = 0;
     this.result = null;
+    this.poolOrder = [];
     this.history = []; // 終わったラウンドの記録（削除された人の分も含む）
     this.usedThemes = new Set(); // この部屋で、確定して回した題材
     this.blockedThemes = new Set(); // この部屋で、「おかしい」と報告された題材
@@ -451,6 +452,7 @@ export class Room {
     if (this.phase === 'answer') {
       if (this._visibleAnswers().length === 0) throw new RoomError('no_answers', '回答が1つもありません');
       this.phase = 'reveal';
+      this.poolOrder = shuffle(this._visibleAnswers().map((a) => a.id)); // 匿名の並びは、ここで一度だけランダムに決める（持ち主の順番が漏れない）
     } else if (this.phase === 'reveal') {
       if (!this._visibleAnswers().some((a) => a.revealed)) throw new RoomError('no_revealed', '開示された回答がありません');
       this.phase = 'vote';
@@ -476,6 +478,15 @@ export class Room {
     const max = Math.max(0, ...tallies.map((t) => t.votes));
     const winners = max > 0 ? tallies.filter((t) => t.votes === max).map((t) => t.answerId) : [];
     this.result = { tallies, winners, tie: winners.length > 1 };
+  }
+
+  // プールの並び。匿名：開示の開始時に決めたランダムな順。記名：参加順。
+  _poolSorted(list, anonymous) {
+    if (anonymous) {
+      const at = (a) => { const i = (this.poolOrder ?? []).indexOf(a.id); return i < 0 ? Infinity : i; };
+      return [...list].sort((x, y) => at(x) - at(y) || (x.id < y.id ? -1 : 1));
+    }
+    return [...list].sort((x, y) => this.players.get(x.ownerId).seq - this.players.get(y.ownerId).seq);
   }
 
   // 結果が出たラウンドの記録（新しい順）。結果発表のあとなので、匿名モードでも作者を出してよい。
@@ -559,7 +570,7 @@ export class Room {
       const hidden = visible.filter((a) => !a.revealed);
       view.unrevealedCount = hidden.length;
       // 全部の回答を、位置が変わらない並びで出す（未開示は中身なし＝黒マス）。匿名の間は、自分の未開示マスも印を付けない。
-      view.pool = [...visible].sort((x, y) => (x.id < y.id ? -1 : 1)).map((a) => ({
+      view.pool = this._poolSorted(visible, anonymous).map((a) => ({
         answerId: a.id,
         revealed: a.revealed,
         text: a.revealed ? a.text : null,
