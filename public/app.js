@@ -348,37 +348,50 @@ function answerHtml() {
     ${progress('回答状況', v.players, (p) => p.answered)}`;
 }
 
+// 自分の回答は、開示・投票・結果のあいだ、常に一番上に出す
+const myCard = () => (view.myAnswer !== null
+  ? `<div class="mycard"><span class="mycard-label">あなたの回答</span><span class="text ${sizeOf(view.myAnswer)}">${esc(view.myAnswer)}</span></div>`
+  : '');
+
+// 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
+function poolHtml() {
+  const v = view, anon = v.settings.identityMode === 'anonymous';
+  const cells = v.pool.map((c) => {
+    if (!c.revealed) {
+      const name = c.author ? `<span class="cell-name">${esc(c.author)}</span>` : '';
+      const cls = `cell dark${c.mine ? ' mine' : ''}`;
+      return c.canReveal
+        ? `<button class="${cls} tap" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}">${name}<span class="cell-hint">タップで開示</span></button>`
+        : `<div class="${cls}">${name}</div>`;
+    }
+    const wide = [...c.text].length > 10 ? ' wide' : '';
+    const picked = v.myVote === c.answerId;
+    const body = `${c.mine ? '<span class="state me">あなた</span>' : ''}${picked ? '<span class="state pick">投票</span>' : ''}<span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}`;
+    return c.canVote
+      ? `<button class="cell open${wide}${picked ? ' picked' : ''}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
+      : `<div class="cell open${wide}${c.mine ? ' mine' : ''}">${body}</div>`;
+  }).join('');
+  return `<section class="pool">${cells}</section>`;
+}
+
 function revealHtml() {
   const v = view, host = v.me.isHost;
-  const total = v.answers.length + v.unrevealedCount;
-  // 未開示の枠：自分の分は中身が見える（先頭）。ほかは黒塗り（記名なら名前だけ）。匿名では、主催者が黒塗りのまま1枠ずつ開く。
-  const slot = (x) => {
-    if (x.mine) {
-      const body = `<span class="text ${sizeOf(x.text)}">${esc(x.text)}</span><span class="by">${x.canReveal ? 'タップすると、みんなに見せます' : 'あなたの回答（主催者が開示します）'}</span>`;
-      return x.canReveal ? `<button class="slot own" data-do="revealOwn">${body}</button>` : `<div class="slot own">${body}</div>`;
-    }
-    if (x.canReveal) return `<button class="slot dark tap" data-do="revealSelected" data-id="${esc(x.answerId)}"><span class="slot-hint">タップして開示</span></button>`;
-    return `<div class="slot dark">${x.author ? `<span class="slot-name">${esc(x.author)}</span>` : ''}</div>`;
-  };
-  const own = v.unrevealed.filter((x) => x.mine).map(slot).join('');
-  const dark = v.unrevealed.filter((x) => !x.mine).map(slot).join('');
-  const shown = v.answers.map((a) => `<div class="answer ${a.mine ? 'mine' : ''}">${a.mine ? '<span class="state me">あなた</span>' : ''}<span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</div>`).join('');
+  const total = v.pool.length;
   return `
     ${telop(v.topic)}
-    <div class="listhead"><h2>開示済み ${v.answers.length}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
-    <section class="stack">${own}${shown}${dark}</section>`;
+    ${myCard()}
+    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2>${host && v.unrevealedCount > 0 ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}</div>
+    ${poolHtml()}
+    ${v.unrevealedCount > 0 ? `<p class="hint">${v.settings.identityMode === 'anonymous' ? '主催者が、黒いマスをタップして開示します。' : '自分の黒いマス（黄色の枠）をタップすると、みんなに見せます。'}</p>` : ''}`;
 }
 
 function voteHtml() {
   const v = view;
-  const cards = v.answers.map((a) => {
-    const picked = v.myVote === a.answerId;
-    return `<button class="answer ${picked ? 'picked' : ''} ${a.mine ? 'mine' : ''}" data-do="vote" data-id="${esc(a.answerId)}" ${a.mine ? 'disabled' : ''}>
-      <span class="state">${a.mine ? 'あなたの回答' : picked ? '投票済み' : ''}</span><span class="text ${sizeOf(a.text)}">${esc(a.text)}</span>${a.author ? `<span class="by">${esc(a.author)}</span>` : ''}</button>`;
-  }).join('');
   return `
     ${telop(v.topic)}
-    <section class="stack"><h2>いちばん「正解」だと思う回答に投票</h2>${cards}</section>
+    ${myCard()}
+    <div class="listhead"><h2>いちばん「正解」だと思う回答をタップ</h2></div>
+    ${poolHtml()}
     ${progress('投票状況', v.players, (p) => p.voted)}`;
 }
 
@@ -394,6 +407,7 @@ function resultHtml() {
   }).join('');
   return `
     ${telop(v.topic)}
+    ${myCard()}
     ${r.tie ? '<p class="hint">同票でした。同票の回答がどれも正解です。</p>' : ''}
     ${r.winners.length === 0 ? '<p class="hint">投票がなかったため、正解は決まりませんでした。</p>' : ''}
     <section class="stack">${rows}</section>`;

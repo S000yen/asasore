@@ -537,6 +537,7 @@ export class Room {
       answers: [],
       unrevealed: [],
       unrevealedCount: 0,
+      pool: [],
       myVote: null,
       result: null,
       history: this._historyView(),
@@ -557,6 +558,16 @@ export class Room {
         .map(toView);
       const hidden = visible.filter((a) => !a.revealed);
       view.unrevealedCount = hidden.length;
+      // 全部の回答を、位置が変わらない並びで出す（未開示は中身なし＝黒マス）。匿名の間は、自分の未開示マスも印を付けない。
+      view.pool = [...visible].sort((x, y) => (x.id < y.id ? -1 : 1)).map((a) => ({
+        answerId: a.id,
+        revealed: a.revealed,
+        text: a.revealed ? a.text : null,
+        mine: a.ownerId === pid && (a.revealed || !anonymous),
+        author: anonymous ? null : nameOf(a.ownerId),
+        canReveal: this.phase === 'reveal' && !a.revealed && (anonymous ? isHost : a.ownerId === pid),
+        canVote: this.phase === 'vote' && a.revealed && a.ownerId !== pid,
+      }));
       if (this.phase === 'reveal') {
         // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
         // 記名：本人が自分の枠をタップして開示する。他の人の枠は、名前だけ付けて黒塗り。

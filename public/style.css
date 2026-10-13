@@ -355,3 +355,38 @@ input.tile-input:focus, textarea.telop.edit textarea.theme-edit:focus { border-c
 
 textarea[readonly] { background: var(--dawn); color: var(--ink); border-color: transparent; }
 .submit-row .hint { font-size: 13px; }
+
+/* 自分の回答（常に一番上） */
+.mycard {
+  display: grid; gap: 2px; padding: 12px 14px; border: 2px dashed var(--ink); border-radius: var(--radius); background: #fffbe0; overflow-wrap: anywhere;
+}
+.mycard-label { font-size: 12px; color: var(--ink-soft); }
+.mycard .text { font-weight: 700; font-size: 18px; }
+.mycard .text.lg { font-size: 22px; }
+.mycard .text.sm { font-size: 15px; }
+
+/* 回答のプール（大きな白枠＋マス） */
+.pool { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; border-radius: 18px; background: var(--paper); }
+.cell {
+  position: relative; display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 76px; padding: 10px 12px;
+  border: 3px solid transparent; border-radius: 10px; text-align: left; overflow-wrap: anywhere;
+}
+.cell.wide { grid-column: 1 / -1; }
+.cell.dark { background: var(--ink); }
+.cell.dark.mine { border-color: var(--telop); }
+.cell-name { color: #8fa0bb; font-size: 12px; }
+.cell-hint { color: var(--telop); font-size: 12px; font-weight: 700; }
+.cell.dark.tap:active { background: #2a3a5e; }
+.cell.open { background: #f1f6fa; border-color: var(--line); }
+.cell.open.mine { background: #fffbe0; }
+.cell.open .text { font-weight: 700; font-size: 16px; }
+.cell.open .text.lg { font-size: 22px; }
+.cell.open .text.md { font-size: 17px; }
+.cell.open .text.sm { font-size: 14px; font-weight: 400; }
+.cell.open .by { font-size: 12px; color: var(--ink-soft); }
+button.cell.open:active { background: #fff3a8; }
+.cell.open.picked { border-color: var(--ink); background: #fffbe0; }
+.cell .state { align-self: flex-start; margin-bottom: 2px; font-size: 11px; font-weight: 700; line-height: 1.6; border-radius: 999px; padding: 0 8px; }
+.cell .state.me { background: var(--ink); color: var(--telop); }
+.cell .state.pick { background: var(--stamp); color: #fff; }
+.cell.open .text { padding-right: 0; }
