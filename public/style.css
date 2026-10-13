@@ -515,3 +515,7 @@ button.who:active { background: #fff; }
 .sprite.c1 { background: var(--telop); color: var(--ink); }
 .sprite .tag { font-size: 10px; font-weight: 700; opacity: .75; }
 .sprite.away { opacity: .45; }
+
+/* 主催者の目印：赤い枠（文字は出さない） */
+.sprite.host { border-color: var(--stamp); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--stamp); }
+.chip.host { box-shadow: inset 0 0 0 2px var(--stamp); }

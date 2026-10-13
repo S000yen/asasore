@@ -222,7 +222,7 @@ function fitTheme() {
 }
 
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
-  `<span class="chip ${p.connected ? '' : 'away'}">${esc(p.name)}${p.isHost ? '<span class="tag">主催者</span>' : ''}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
+  `<span class="chip ${p.connected ? '' : 'away'}${p.isHost ? ' host' : ''}">${esc(p.name)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
 
 const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
 // 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
@@ -340,7 +340,7 @@ function rosterHtml() {
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
   const items = players.map((p, i) => {
     const s = spriteOf(p, i);
-    return `<div class="sprite c${s.c}${p.connected ? '' : ' away'}" data-pid="${esc(p.id)}" style="transform:translate(${s.x}px,${s.y}px)">${esc(p.name)}${p.isHost ? '<span class="tag">主催者</span>' : ''}</div>`;
+    return `<div class="sprite c${s.c}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}" data-pid="${esc(p.id)}" style="transform:translate(${s.x}px,${s.y}px)">${esc(p.name)}</div>`;
   }).join('');
   return `<div class="bfield roster" id="rosterField">${items}</div>`;
 }
