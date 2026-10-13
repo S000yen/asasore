@@ -467,7 +467,6 @@ button.who:active { background: #fff; }
 /* 2択は、1つの枠を2つで分け合う。選んでいる方は、塗りつぶし＋二重線 */
 .seg { display: flex; gap: 0; overflow: hidden; border: 2px solid var(--ink); border-radius: 14px; background: #fff; }
 .seg .btn { flex: 1; min-height: 48px; border: 0; border-radius: 0; background: #fff; color: var(--ink); }
-.seg .btn + .btn { border-left: 2px solid var(--ink); }
 .seg .btn.on { background: var(--ink); color: #fff; box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px rgba(255, 255, 255, .9); }
 
 /* 作成ポップアップの操作：キャンセルは目立たせず、作成を主役に */
