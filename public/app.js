@@ -254,10 +254,10 @@ function entryHtml() {
   const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet">
       <h3>部屋をつくる</h3>
       <div class="stack">
-        <h2>出題者</h2>${seg('presenterMode', [['host', '毎回主催者'], ['rotation', '順番に回す']])}
+        <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
         <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       </div>
-      <div class="btns" style="margin-top:18px"><button class="btn" data-do="closeCreate">キャンセル</button><button class="btn primary" data-do="create">作成</button></div>
+      <div class="dialog-actions"><button class="link" data-do="closeCreate">キャンセル</button><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
       <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
@@ -529,7 +529,7 @@ function sheetHtml() {
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="1" ${i === ids.length - 1 || locked ? 'disabled' : ''} aria-label="下へ">↓</button></span></li>`).join('')}</ul>` : '';
     inner = `<h3>部屋設定</h3><div class="stack">
       ${locked ? '<p class="hint">ラウンド中は変更できません</p>' : ''}
-      <h2>出題者</h2>${seg('presenterMode', [['host', '毎ラウンド主催者'], ['rotation', '順番に回す']])}
+      <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       ${order}</div>`;
   } else if (k === 'transfer') {
