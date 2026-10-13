@@ -39,9 +39,14 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
   padding: calc(env(safe-area-inset-top) + 10px) 0 10px;
   background: var(--dawn);
 }
-.room { display: flex; align-items: baseline; gap: 8px; justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; color: inherit; text-align: left; align-items: center; }
-.room:active .code { opacity: .6; }
-.room-label { font-size: 13px; color: var(--ink-soft); }
+/* 部屋番号：画面の左上の角にくっつく紺の札（文字は背景色） */
+.room {
+  --top: calc(env(safe-area-inset-top) + 10px);
+  box-sizing: border-box; display: flex; align-items: center; justify-self: start; align-self: start;
+  margin: calc(-1 * var(--top)) 0 0 -16px; min-height: calc(48px + var(--top)); padding: var(--top) 16px 0 16px;
+  border: 0; border-radius: 0 0 16px 0; background: var(--ink); color: var(--dawn); text-align: left;
+}
+.room:active { background: #2a3a5e; }
 .code { font-family: var(--display); font-size: 22px; letter-spacing: .08em; font-weight: 400; }
 .round { font-family: var(--display); font-size: 17px; color: var(--ink); text-align: center; white-space: nowrap; }
 .bar-right { justify-self: end; }

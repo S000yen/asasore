@@ -288,7 +288,7 @@ function roomHtml() {
   const v = view;
   return `
     <header class="bar">
-      <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><span class="room-label">部屋</span><b class="code">${esc(v.code)}</b></button>
+      <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><b class="code">${esc(v.code)}</b></button>
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
         ${v.history.length ? '<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>' : ''}
