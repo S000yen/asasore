@@ -752,7 +752,11 @@ test('制限時間：未回答がいると爆弾が爆発して、開示へ進�
   const [A, B, C] = ids;
   room.setSettings(A, { timeLimit: '60' });
   assert.equal(room.settings.timeLimit, 60);
-  assert.throws(() => room.setSettings(A, { timeLimit: 45 }), { code: 'bad_setting' });
+  assert.throws(() => room.setSettings(A, { timeLimit: 181 }), { code: 'bad_setting' });
+  assert.throws(() => room.setSettings(A, { timeLimit: 4 }), { code: 'bad_setting' });
+  room.setSettings(A, { timeLimit: 45 }); // 5〜180秒なら、どの値でもよい
+  assert.equal(room.settings.timeLimit, 45);
+  room.setSettings(A, { timeLimit: '60' });
   toAnswerPhase(room, ids);
   room.submitAnswer(A, 'ねこ');
   room.submitAnswer(B, 'いぬ');

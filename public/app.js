@@ -47,7 +47,7 @@ let pendingLink = (() => {
   const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
-const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all' }; // 部屋をつくるときの設定（作成の前に選ぶ）
+const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all', timeLimit: 0 }; // 部屋をつくるときの設定（作成の前に選ぶ）
 const ui = { joinWatch: false, editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
 const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
@@ -449,6 +449,21 @@ const telop = (t) => t
   ? `<div class="telop"><div class="tile" id="tpTile">${esc(t.hiragana || '？')}</div><div class="telop-text"><span class="tiny">で始まる</span><strong id="tpTheme">${esc(t.theme)}</strong><span class="tiny">といえば？</span></div></div>`
   : '';
 
+// 回答の制限時間：5〜180秒のバー。いちばん右が「なし」。目盛りをタップすると、その時間になる。
+const TS_MIN = 5, TS_MAX = 180, TS_NONE = TS_MAX + 25; // 右端の「なし」は、180秒の目盛りと重ならないよう、少し離しておく
+const TS_TICKS = [5, 30, 60, 90, 120, 150, 180, 0];
+const tsPos = (v) => (Number(v) === 0 ? TS_NONE : Number(v));
+const tsLabel = (v) => (Number(v) === 0 ? 'なし' : `${v}秒`);
+function timeSliderHtml(value, ctx, disabled = false) {
+  const frac = (pos) => (pos - TS_MIN) / (TS_NONE - TS_MIN);
+  const ticks = TS_TICKS.map((v) => `<button type="button" class="tick${Number(value) === v ? ' on' : ''}" style="--f:${frac(tsPos(v))}" data-do="setTime" data-ctx="${ctx}" data-val="${v}" ${disabled ? 'disabled' : ''}>${v === 0 ? 'なし' : v}</button>`).join('');
+  return `<div class="tslider" data-ctx="${ctx}">
+    <div class="tval"><b>${tsLabel(value)}</b></div>
+    <input type="range" class="trange" min="${TS_MIN}" max="${TS_NONE}" step="5" value="${tsPos(value)}" data-slider="${ctx}" style="--f:${frac(tsPos(value))}" aria-label="回答の制限時間" ${disabled ? 'disabled' : ''}>
+    <div class="ticks">${ticks}</div>
+  </div>`;
+}
+
 function entryHtml() {
   if (endMessage) return endHtml();
   const resume = session ? `<button class="link center" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
@@ -466,6 +481,7 @@ function entryHtml() {
         <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
         <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
         <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
+        <h2>回答の制限時間</h2>${timeSliderHtml(newRoom.timeLimit, 'create')}
       </div>
       <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
@@ -904,7 +920,7 @@ function sheetHtml() {
       <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
-      <h2>回答の制限時間</h2>${seg('timeLimit', [[0, 'なし'], [30, '30秒'], [60, '60秒'], [90, '90秒'], [120, '120秒']])}
+      <h2>回答の制限時間</h2>${timeSliderHtml(s.timeLimit, 'settings', locked)}
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
@@ -952,6 +968,11 @@ function confirmPick(kind, id) {
 const handlers = {
   openCreate() { ui.createOpen = true; render(); },
   closeCreate() { ui.createOpen = false; render(); },
+  setTime(d) {
+    const val = Number(d.val);
+    if (d.ctx === 'create') { newRoom.timeLimit = val; render(); }
+    else act('setSettings', { patch: { timeLimit: val } });
+  },
   newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
     if (!sendCritical({ t: 'create', name: prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
@@ -1140,6 +1161,22 @@ $app.addEventListener('input', (e) => {
     if (tile) tile.textContent = drafts.hiragana || '？';
     if (theme) theme.textContent = drafts.theme;
   }
+});
+
+// 制限時間のバー：動かしている間は表示だけ変えて、指を離したときに確定する
+const sliderVal = (el) => { const n = Number(el.value); return n > TS_MAX ? 0 : n; };
+$app.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.dataset?.slider) return;
+  const v = sliderVal(el);
+  const box = el.closest('.tslider');
+  box.querySelector('.tval b').textContent = tsLabel(v);
+  box.querySelectorAll('.tick').forEach((t) => t.classList.toggle('on', Number(t.dataset.val) === v));
+});
+$app.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.dataset?.slider) return;
+  handlers.setTime({ ctx: el.dataset.slider, val: String(sliderVal(el)) });
 });
 
 $app.addEventListener('keydown', (e) => { // Enter で、コード入力と表示名変更を確定する（変換中は除く）

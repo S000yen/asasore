@@ -44,7 +44,7 @@ function shuffle(list) {
 
 export const MIN_PLAYERS = 3; // 投票は自分以外の回答に入れるので、3人以上で遊べる
 
-const TIME_LIMITS = [0, 30, 60, 90, 120];
+const TIME_LIMIT_MIN = 5, TIME_LIMIT_MAX = 180; // 回答の制限時間（秒）。0 は制限なし
 
 export class Room {
   constructor(code, { graceMs = DEFAULT_GRACE_MS, emptyCloseMs = DEFAULT_EMPTY_CLOSE_MS, now = Date.now() } = {}) {
@@ -279,7 +279,7 @@ export class Room {
     }
     if (patch.timeLimit !== undefined) {
       const n = Number(patch.timeLimit);
-      if (!TIME_LIMITS.includes(n)) throw new RoomError('bad_setting', '制限時間の指定が正しくありません');
+      if (!(n === 0 || (Number.isInteger(n) && n >= TIME_LIMIT_MIN && n <= TIME_LIMIT_MAX))) throw new RoomError('bad_setting', '制限時間の指定が正しくありません');
       this.settings.timeLimit = n;
     }
     if (patch.order !== undefined) {

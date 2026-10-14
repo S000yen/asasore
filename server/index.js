@@ -308,8 +308,8 @@ wss.on('connection', (ws) => {
         const entry = { room, sockets: new Map() };
         const p = room.join(null, msg.name);
         if (msg.settings && typeof msg.settings === 'object') { // 作成前に選んだ設定。不正な値は無視して、既定のまま作る
-          const { presenterMode, identityMode, chooserMode } = msg.settings;
-          try { room.setSettings(p.id, { presenterMode, identityMode, chooserMode }); } catch { /* 既定のまま */ }
+          const { presenterMode, identityMode, chooserMode, timeLimit } = msg.settings;
+          try { room.setSettings(p.id, { presenterMode, identityMode, chooserMode, timeLimit }); } catch { /* 既定のまま */ }
         }
         rooms.set(code, entry);
         attach(code, entry, p.id);
