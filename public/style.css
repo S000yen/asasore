@@ -718,4 +718,4 @@ body.shake #app { animation: shake .7s linear both; }
 
 .thead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
 .thead h2 { margin: 0; }
-.tval { color: var(--ink); font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tval { color: var(--ink); font-size: 19px; margin-right: 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
