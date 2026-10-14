@@ -458,7 +458,7 @@ function timeSliderHtml(value, ctx, disabled = false) {
   const frac = (pos) => (pos - TS_MIN) / (TS_NONE - TS_MIN);
   const ticks = TS_TICKS.map((v) => `<button type="button" class="tick${Number(value) === v ? ' on' : ''}" style="--f:${frac(tsPos(v))}" data-do="setTime" data-ctx="${ctx}" data-val="${v}" ${disabled ? 'disabled' : ''}>${v === 0 ? 'なし' : v}</button>`).join('');
   return `<div class="tslider" data-ctx="${ctx}">
-    <div class="tval"><b>${tsLabel(value)}</b></div>
+    <div class="thead"><h2>回答の制限時間</h2><span class="tval">${tsLabel(value)}</span></div>
     <input type="range" class="trange" min="${TS_MIN}" max="${TS_NONE}" step="5" value="${tsPos(value)}" data-slider="${ctx}" style="--f:${frac(tsPos(value))}" aria-label="回答の制限時間" ${disabled ? 'disabled' : ''}>
     <div class="ticks">${ticks}</div>
   </div>`;
@@ -481,7 +481,7 @@ function entryHtml() {
         <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
         <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
         <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
-        <h2>回答の制限時間</h2>${timeSliderHtml(newRoom.timeLimit, 'create')}
+        ${timeSliderHtml(newRoom.timeLimit, 'create')}
       </div>
       <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
@@ -920,7 +920,7 @@ function sheetHtml() {
       <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
-      <h2>回答の制限時間</h2>${timeSliderHtml(s.timeLimit, 'settings', locked)}
+      ${timeSliderHtml(s.timeLimit, 'settings', locked)}
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
@@ -1170,7 +1170,7 @@ $app.addEventListener('input', (e) => {
   if (!el.dataset?.slider) return;
   const v = sliderVal(el);
   const box = el.closest('.tslider');
-  box.querySelector('.tval b').textContent = tsLabel(v);
+  box.querySelector('.tval').textContent = tsLabel(v);
   box.querySelectorAll('.tick').forEach((t) => t.classList.toggle('on', Number(t.dataset.val) === v));
 });
 $app.addEventListener('change', (e) => {
