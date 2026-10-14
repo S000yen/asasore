@@ -419,7 +419,22 @@ const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none"
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
 const SVG_ATTR = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
 const ICON_PENCIL = `<svg ${SVG_ATTR} width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
-const ICON_FLAG = `<svg ${SVG_ATTR}><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg>`;
+// メニューの項目に付ける線画アイコン（24x24）
+const MENU_ICONS = {
+  share: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/>',
+  name: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  players: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  howto: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
+  reclaim: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  transfer: '<path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/>',
+  allow: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
+  leave: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  close: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
+};
+const menuIcon = (k) => `<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MENU_ICONS[k]}</svg>`;
+const ICON_FLAG = `<svg ${SVG_ATTR}><path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/></svg>`; // 主催者＝王冠（名前は昔のまま）
 const ICON_GHOST = `<svg ${SVG_ATTR}><path d="M5 21V11a7 7 0 0 1 14 0v10l-2.5-2-2.3 2-2.2-2-2.2 2-2.3-2z"/><path d="M9.5 11v.01M14.5 11v.01"/></svg>`;
 const badgeHost = '<span class="badge" role="img" aria-label="主催者">' + ICON_FLAG + '</span>';
 const badgeSpec = '<span class="badge spec" role="img" aria-label="観戦中">' + ICON_GHOST + '</span>';
@@ -908,25 +923,25 @@ function sheetHtml() {
   const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${escN(p.name, 24)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
   let inner = '';
   if (k === 'menu') {
-    const item = (cls, attrs, label, side = '') => `<button class="item ${cls}" ${attrs}><span>${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
+    const item = (cls, attrs, label, side = '', icon = '') => `<button class="item ${cls}" ${attrs}>${icon ? menuIcon(icon) : ''}<span class="lbl">${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
     inner = `<h3>メニュー</h3><div class="menu-list">
       <div class="group">
-        ${item('', 'data-do="share"', '招待リンクを共有')}
-        ${item('', 'data-do="openRename"', '表示名', escN(v.me.name, 16))}
-        ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`)}
-        ${item('', 'data-do="sheet" data-kind="howto"', '遊び方')}
+        ${item('', 'data-do="share"', '招待リンクを共有', '', 'share')}
+        ${item('', 'data-do="openRename"', '表示名', escN(v.me.name, 16), 'name')}
+        ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`, 'players')}
+        ${item('', 'data-do="sheet" data-kind="howto"', '遊び方', '', 'howto')}
+        <div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div>
       </div>
       ${host ? `<div class="group"><p class="group-label">主催者</p>
-        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
-        ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
-        ${item('', v.history.length ? 'data-do="resetRoom"' : 'disabled', '記録をリセット')}
-        ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
-        ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
+        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する', '', 'reclaim') : ''}
+        ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定', '', 'settings')}
+        ${item('', v.history.length ? 'data-do="resetRoom"' : 'disabled', '記録をリセット', '', 'reset')}
+        ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る', '', 'transfer')}
+        ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`, 'allow') : ''}
       </div>` : ''}
-      <div class="group segrow"><div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div></div>
       <div class="group">
-        ${item('danger', 'data-do="leave"', '退出する')}
-        ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
+        ${item('danger', 'data-do="leave"', '退出する', '', 'leave')}
+        ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる', '', 'close') : ''}
       </div>
     </div>`;
   } else if (k === 'history') {

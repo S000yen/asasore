@@ -745,5 +745,8 @@ body[data-phase="vote"] .sheet .howto h2 { color: var(--ink); }
 
 .sprite.long { width: calc(100% - 24px); max-width: none; text-align: center; }
 .prow { height: auto; text-align: left; }
-.group.segrow { padding: 14px 0; }
 .namebtn, .namebtn:active { border-color: transparent; background: #fff; box-shadow: none; }
+.item .mi { flex: none; width: 20px; height: 20px; color: var(--ink-soft); }
+.item.danger .mi { color: var(--stamp); }
+.item .lbl { flex: 1; min-width: 0; }
+.group > .seg { margin: 8px 0 10px; }
