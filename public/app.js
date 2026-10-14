@@ -410,6 +410,7 @@ const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none"
 // 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
 const SVG_ATTR = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+const ICON_PENCIL = `<svg ${SVG_ATTR} width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
 const ICON_FLAG = `<svg ${SVG_ATTR}><path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/></svg>`;
 const ICON_GHOST = `<svg ${SVG_ATTR}><path d="M5 21V11a7 7 0 0 1 14 0v10l-2.5-2-2.3 2-2.2-2-2.2 2-2.3-2z"/><path d="M9.5 11v.01M14.5 11v.01"/></svg>`;
 const badgeHost = '<span class="badge" role="img" aria-label="主催者">' + ICON_FLAG + '</span>';
@@ -545,7 +546,7 @@ function phaseHtml() {
 function lobbyHtml() {
   const v = view;
   return `
-    <div class="listhead"><h2>参加者 ${v.players.length}人</h2></div>
+    <div class="listhead"><h2>参加者 ${v.players.length}人</h2><div class="lh-actions"><button class="btn small edit-toggle" data-do="openRename">${ICON_PENCIL}表示名</button></div></div>
     ${rosterHtml()}
     <button class="btn small center" data-do="share">招待リンクを共有する</button>
 `;

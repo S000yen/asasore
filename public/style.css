@@ -737,3 +737,5 @@ body.shake #app { animation: shake .7s linear both; }
 .howto li { margin: 0 0 6px; }
 .howto b { font-weight: 700; }
 body[data-phase="vote"] .sheet .howto h2 { color: var(--ink); }
+
+.edit-toggle svg { width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; }
