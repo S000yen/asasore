@@ -893,7 +893,7 @@ function sheetHtml() {
     inner = `<h3>メニュー</h3><div class="menu-list">
       <div class="group">
         ${item('', 'data-do="share"', '招待リンクを共有')}
-        ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
+        ${item('', 'data-do="openRename"', '表示名', esc(v.me.name))}
         ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`)}
         ${item('', 'data-do="sheet" data-kind="howto"', '遊び方')}
       </div>
@@ -904,7 +904,7 @@ function sheetHtml() {
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
-      ${`<div class="group">${item('', 'data-do="toggleSpectate"', (v.me.nextSpectator ?? v.me.spectator) ? '参戦に切り替える' : '観戦に切り替える', v.me.nextSpectator !== null && v.me.nextSpectator !== undefined ? '次のラウンドから' : '')}</div>`}
+      <div class="group"><div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div></div>
       <div class="group">
         ${item('danger', 'data-do="leave"', '退出する')}
         ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
@@ -1077,13 +1077,15 @@ const handlers = {
   },
   randomChooser() { ui.sheet = null; act('randomChooser'); render(); },
   // 観戦⇔参戦。回答中までは、すぐ。それ以降は次のラウンドから。
-  toggleSpectate() {
-    ui.sheet = null;
-    const want = !(view.me.nextSpectator ?? view.me.spectator);
+  // 参戦／観戦の切り替え（メニューは開いたまま）。回答中までは、すぐ。それ以降は次のラウンドから。
+  setSpectate(d) {
+    const want = d.val === 'true';
+    if (want === Boolean(view.me.nextSpectator ?? view.me.spectator)) return;
     if (!act('setSpectator', { spectator: want })) return;
     if (!['lobby', 'topic', 'answer', 'result'].includes(view.phase) && want !== view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
     render();
   },
+  toggleSpectate() { handlers.setSpectate({ val: String(!(view.me.nextSpectator ?? view.me.spectator)) }); },
   resetRoom() {
     ui.sheet = null;
     ui.modal = { body: '記録と問題数を消して、最初の画面に戻します。参加者と設定は、そのまま残ります。', ok: 'リセットする', danger: true, onOk: () => act('resetRoom') };
