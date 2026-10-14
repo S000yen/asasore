@@ -294,7 +294,7 @@ test('表示名の変更：参加中ならいつでも可、空・長すぎ・�
   assert.equal(room.players.get(B).name, 'ぼく');
   assert.equal(room.viewFor(A).players.find((p) => p.id === B).name, 'ぼく'); // 他の人の画面にも反映
   assert.throws(() => room.rename(B, '  '), { code: 'bad_name' });
-  assert.throws(() => room.rename(B, 'あ'.repeat(21)), { code: 'bad_name' });
+  assert.throws(() => room.rename(B, 'あ'.repeat(51)), { code: 'bad_name' });
   assert.throws(() => room.rename(B, 'A'), { code: 'name_taken' }); // 主催者の名前
   room.rename(B, 'ぼく'); // 自分の今の名前に変えるのは問題なし
   room.removePlayer(A, B);
@@ -833,4 +833,16 @@ test('選ぶ人に、観戦中の人を指名できる', () => {
   room.advance(W);
   assert.equal(room.phase, 'result');
   assert.equal(room.viewFor(A).result.winners.length, 1);
+});
+
+test('表示名は50文字まで。同名のときは、末尾に番号が付く（50文字に収まる）', () => {
+  const room = new Room('TEST');
+  const long = 'あ'.repeat(50);
+  const A = room.join(null, long, 1).id;
+  assert.equal(room.viewFor(A).me.name.length, 50);
+  assert.throws(() => room.rename(A, 'あ'.repeat(51)), { code: 'bad_name' });
+  const B = room.join(null, long, 2).id;
+  const nb = room.viewFor(B).me.name;
+  assert.equal(nb.length, 50);
+  assert.ok(nb.endsWith('2'));
 });

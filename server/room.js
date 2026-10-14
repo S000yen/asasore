@@ -31,7 +31,7 @@ const DEFAULT_GRACE_MS = 3 * 60 * 1000; // 主催者・出題者が落ちてか�
 const DEFAULT_EMPTY_CLOSE_MS = 30 * 60 * 1000; // 誰もいなくなってから部屋を閉じるまで
 const MAX_ANSWER_LEN = 100;
 const MAX_THEME_LEN = 40;
-const MAX_NAME_LEN = 20;
+const MAX_NAME_LEN = 50;
 
 function shuffle(list) {
   const a = [...list];

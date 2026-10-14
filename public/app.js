@@ -53,6 +53,14 @@ const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
 
+// 長い名前は、真ん中を「…」にして、最後の少し（同名のときの番号など）を残す
+const short = (name, max = 12) => {
+  const cs = [...String(name ?? '')];
+  if (cs.length <= max) return cs.join('');
+  const tail = 3;
+  return `${cs.slice(0, max - tail - 1).join('')}…${cs.slice(-tail).join('')}`;
+};
+const escN = (name, max) => esc(short(name, max));
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- 通信 ----------
@@ -404,7 +412,7 @@ function fitTheme() {
 }
 
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
-  `<span class="chip ${p.connected ? '' : 'away'}${p.id === view?.me.id ? ' me' : ''}">${p.isHost ? badgeHost : ''}${esc(p.name)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
+  `<span class="chip ${p.connected ? '' : 'away'}${p.id === view?.me.id ? ' me' : ''}">${p.isHost ? badgeHost : ''}${escN(p.name, 12)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
 
 const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
 // 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
@@ -546,7 +554,7 @@ function phaseHtml() {
 function lobbyHtml() {
   const v = view;
   return `
-    <div class="listhead"><h2>参加者 ${v.players.length}人</h2><div class="lh-actions"><button class="btn small edit-toggle namebtn" data-do="openRename" aria-label="表示名を変える">${ICON_PENCIL}<span class="nm">${esc(v.me.name)}</span></button></div></div>
+    <div class="listhead"><h2>参加者 ${v.players.length}人</h2><div class="lh-actions"><button class="btn small edit-toggle namebtn" data-do="openRename" aria-label="表示名を変える">${ICON_PENCIL}<span class="nm">${escN(v.me.name, 10)}</span></button></div></div>
     ${rosterHtml()}
     <button class="btn small center" data-do="share">招待リンクを共有する</button>
 `;
@@ -595,7 +603,7 @@ function rosterHtml() {
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
   const items = players.map((p) => {
     const s = spriteOf(p);
-    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.spectator ? ' spec' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}${esc(p.name)}</div>`;
+    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.spectator ? ' spec' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}${escN(p.name, 14)}</div>`;
   }).join('');
   const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
@@ -730,7 +738,7 @@ function poolHtml() {
     }
     const wide = [...c.text].length > 10 ? ' wide' : '';
     const picked = v.myVote === c.answerId || (myGroup !== null && c.group === myGroup);
-    const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${esc(c.author)}</span>` : ''}</span>`;
+    const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${escN(c.author, 12)}</span>` : ''}</span>`;
     const cls = `cell open${me}${picked ? ' picked' : ''}`;
     const main = c.canVote && !editing
       ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
@@ -792,7 +800,7 @@ function resultHtml() {
     return `<div class="cell ${won ? 'win' : 'open'}${wide}">
       ${t.group ? `<span class="gtag in" aria-label="同じ回答 ${groupMark(t.group)}">${groupMark(t.group)}</span>` : ''}
       ${won ? '<span class="stamp">正解</span>' : ''}
-      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${esc(t.author)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
+      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${escN(t.author, 12)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
   }).join('');
   return `
     ${telop(v.topic)}
@@ -887,14 +895,14 @@ function sheetHtml() {
   if (!ui.sheet) return '';
   const v = view, k = ui.sheet.kind, host = v.me.isHost;
   const others = v.players.filter((p) => p.id !== v.me.id);
-  const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${esc(p.name)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
+  const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${escN(p.name, 24)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
   let inner = '';
   if (k === 'menu') {
     const item = (cls, attrs, label, side = '') => `<button class="item ${cls}" ${attrs}><span>${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
     inner = `<h3>メニュー</h3><div class="menu-list">
       <div class="group">
         ${item('', 'data-do="share"', '招待リンクを共有')}
-        ${item('', 'data-do="openRename"', '表示名', esc(v.me.name))}
+        ${item('', 'data-do="openRename"', '表示名', escN(v.me.name, 16))}
         ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`)}
         ${item('', 'data-do="sheet" data-kind="howto"', '遊び方')}
       </div>
@@ -916,7 +924,7 @@ function sheetHtml() {
     for (const h of v.history) for (const e of h.entries) { const t = tot.get(e.author) ?? { w: 0, v: 0 }; t.w += e.won ? 1 : 0; t.v += e.votes; tot.set(e.author, t); }
     const rank = [...tot].sort((x, y) => y[1].w - x[1].w || y[1].v - x[1].v);
     const maxW = Math.max(1, ...rank.map(([, t]) => t.w));
-    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row${t.w > 0 && t.w === maxW ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
+    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row${t.w > 0 && t.w === maxW ? ' top' : ''}"><span class="g-name">${escN(n, 10)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
     // 得票率：全員の投票で決めたラウンドについて、その人の回答が受けた票 ÷ 投じられた票の合計
     const rate = new Map();
     let rounds = 0;
@@ -927,16 +935,16 @@ function sheetHtml() {
     }
     const rr = [...rate].map(([n, t]) => [n, t.all ? (t.got / t.all) * 100 : 0]).sort((x, y) => y[1] - x[1]);
     const maxR = Math.max(1, ...rr.map(([, p]) => p));
-    const rateGraph = rounds ? `<h3 class="sub">得票率</h3><div class="graph rate">${rr.map(([n, p]) => `<div class="g-row${p > 0 && p === maxR ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (p / maxR) * 100)}%"></i></span><span class="g-val">${Math.round(p)}<small>%</small></span></div>`).join('')}</div>` : '';
+    const rateGraph = rounds ? `<h3 class="sub">得票率</h3><div class="graph rate">${rr.map(([n, p]) => `<div class="g-row${p > 0 && p === maxR ? ' top' : ''}"><span class="g-name">${escN(n, 10)}</span><span class="g-track"><i style="width:${Math.max(4, (p / maxR) * 100)}%"></i></span><span class="g-val">${Math.round(p)}<small>%</small></span></div>`).join('')}</div>` : '';
     if (!v.history.length) inner = '<h3>これまでの記録</h3><p class="hint">記録はありません</p>';
     else inner = `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
-        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
+        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${escN(e.author, 12)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
       </article>`).join('')}</div>`;
   } else if (k === 'rename') {
     inner = `<h3>表示名を変える</h3><div class="stack">
-      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="20" autocomplete="off" value="${esc(drafts.rename)}"></label>
+      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="50" autocomplete="off" value="${esc(drafts.rename)}"></label>
       <button class="btn primary block" data-do="doRename">変更する</button></div>`;
   } else if (k === 'settings') {
     const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
@@ -961,7 +969,7 @@ function sheetHtml() {
     // 全員が見られる。外せるのは主催者だけ（自分自身はタップしても何も起きない）
     const row = (p) => {
       const me = p.id === v.me.id;
-      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${esc(p.name)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
+      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${escN(p.name, 24)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
       return host && !me
         ? `<button class="btn prow" data-do="pick" data-kind="remove" data-id="${esc(p.id)}">${inner}</button>`
         : `<div class="prow${me ? ' me' : ''}">${inner}</div>`;
