@@ -42,6 +42,9 @@ function shuffle(list) {
   return a;
 }
 
+// まとまりの番号（1から）。どのまとまりにも入っていなければ null。
+const groupNoIn = (groups, id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? null : i + 1; };
+
 export const MIN_PLAYERS = 3; // 投票は自分以外の回答に入れるので、3人以上で遊べる
 
 const TIME_LIMIT_MIN = 5, TIME_LIMIT_MAX = 180; // 回答の制限時間（秒）。0 は制限なし
@@ -173,8 +176,7 @@ export class Room {
       const pres = this.players.get(this.presenterId);
       const hostNow = this.players.get(this.hostId);
       if (pres && !pres.connected && now - pres.disconnectedAt >= this.graceMs && hostNow?.connected) {
-        this.presenterId = this.hostId;
-        this.topic = null;
+        this._setPresenter(this.hostId);
         events.push({ type: 'presenter_returned_to_host', from: pres.id, to: this.hostId });
       }
     }
@@ -182,8 +184,7 @@ export class Room {
       const ch = this.players.get(this.chooserId);
       const hostNow = this.players.get(this.hostId);
       if (ch && !ch.connected && now - ch.disconnectedAt >= this.graceMs && hostNow?.connected) {
-        this.chooserId = this.hostId;
-        if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null;
+        this._setChooser(this.hostId);
         events.push({ type: 'chooser_returned_to_host', from: ch.id, to: this.hostId });
       }
     }
@@ -228,6 +229,18 @@ export class Room {
     return { type: 'host_transferred', from, to: newId, how };
   }
 
+  // 出題者を付け替える。お題の下書きは白紙に戻る。
+  _setPresenter(id) {
+    this.presenterId = id;
+    this.topic = null;
+  }
+
+  // 正解を選ぶ人を付け替える。新しい選ぶ人の自分だけの回答が選ばれていたら、その選択は取り消す（自分の回答は選べない）。
+  _setChooser(id) {
+    this.chooserId = id;
+    if (this.choice && this._selfOnly(id, this.choice)) this.choice = null;
+  }
+
   transferHost(by, to) {
     requireHost(this, by);
     const target = getActive(this, to);
@@ -242,11 +255,8 @@ export class Room {
     if (target === by) throw new RoomError('bad_target', '自分自身は削除できません');
     const p = getActive(this, target);
     p.removed = true;
-    if (this.chooserId === target) { this.chooserId = this.hostId; if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null; }
-    if (this.presenterId === target) {
-      this.presenterId = this.hostId;
-      this.topic = null;
-    }
+    if (this.chooserId === target) this._setChooser(this.hostId);
+    if (this.presenterId === target) this._setPresenter(this.hostId);
     return { type: 'player_removed', id: target };
   }
 
@@ -305,12 +315,19 @@ export class Room {
     });
   }
 
+  // ラウンドの途中で頼んでおいた、観戦／参戦の切り替えを反映する（次のラウンドの始まりと、部屋のリセットで呼ぶ）
+  _applyPendingSpectators() {
+    for (const p of this.players.values()) {
+      if (p.nextSpectator !== null && p.nextSpectator !== undefined) { p.spectator = p.nextSpectator; p.nextSpectator = null; }
+    }
+  }
+
   startRound(by) {
     requireHost(this, by);
     this._need('lobby', 'result');
     const playing = connectedPlayers(this).filter((p) => !(p.nextSpectator ?? p.spectator)).length; // 次のラウンドから参戦する人の数
     if (playing < MIN_PLAYERS) throw new RoomError('min_players', `${MIN_PLAYERS}人以上いないと始められません（投票で、自分以外の回答を選ぶため）`);
-    for (const p of this.players.values()) if (p.nextSpectator !== null && p.nextSpectator !== undefined) { p.spectator = p.nextSpectator; p.nextSpectator = null; }
+    this._applyPendingSpectators();
     this._archiveRound();
     this.round += 1;
     this.answers.clear();
@@ -342,8 +359,7 @@ export class Room {
     this._need('topic');
     const target = getActive(this, to); // 観戦中の人にも任せられる
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
-    this.presenterId = to;
-    this.topic = null;
+    this._setPresenter(to);
     return { type: 'presenter_changed', by, to };
   }
 
@@ -497,7 +513,7 @@ export class Room {
     this.rotationCursor = null;
     this.chooserId = null;
     this.presenterId = this.hostId;
-    for (const p of this.players.values()) if (p.nextSpectator !== null && p.nextSpectator !== undefined) { p.spectator = p.nextSpectator; p.nextSpectator = null; }
+    this._applyPendingSpectators();
     this.phase = 'lobby';
     return { type: 'room_reset' };
   }
@@ -532,10 +548,6 @@ export class Room {
   _selfOnly(by, answerId) {
     const a = this._findAnswer(answerId);
     return Boolean(a) && a.ownerId === by && this._unitOf(answerId).length === 1;
-  }
-
-  _ownersOf(ids) {
-    return new Set(ids.map((id) => this._findAnswer(id)?.ownerId).filter(Boolean));
   }
 
   // 主催者が、開示済みの回答を1つにまとめる（すでにまとまっているものが混じれば、合わせて1つにする）
@@ -597,8 +609,7 @@ export class Room {
     if (!canAssignChooser(this, by)) throw new RoomError('not_allowed', '選ぶ人を任せられるのは、いまの選ぶ人です（不在のときは主催者）');
     const target = getActive(this, to); // 観戦中の人にも任せられる
     if (!target.connected) throw new RoomError('not_connected', '接続中の人にだけ任せられます');
-    this.chooserId = to;
-    if (this.choice && this._selfOnly(to, this.choice)) this.choice = null; // 自分の回答は選べない
+    this._setChooser(to);
     return { type: 'chooser_changed', by, to };
   }
 
@@ -607,14 +618,12 @@ export class Room {
     requireHost(this, by);
     if (this.phase === 'topic' && this.presenterId !== this.hostId) {
       const from = this.presenterId;
-      this.presenterId = this.hostId;
-      this.topic = null;
+      this._setPresenter(this.hostId);
       return { type: 'role_reclaimed', role: 'presenter', from, to: this.hostId };
     }
     if (this.phase === 'vote' && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId) {
       const from = this.chooserId;
-      this.chooserId = this.hostId;
-      if (this.choice && this._selfOnly(this.hostId, this.choice)) this.choice = null;
+      this._setChooser(this.hostId);
       return { type: 'role_reclaimed', role: 'chooser', from, to: this.hostId };
     }
     throw new RoomError('nothing_to_reclaim', '回収できる役割がありません');
@@ -709,7 +718,7 @@ export class Room {
   _tally() {
     const shown = this._visibleAnswers().filter((a) => a.revealed);
     const groups = this._liveGroups();
-    const groupNo = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? null : i + 1; };
+    const groupNo = (id) => groupNoIn(groups, id);
     const unitKey = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? id : `g${i}`; };
     if (this.settings.chooserMode === 'one') {
       const win = this.choice ? new Set(this._unitOf(this.choice)) : new Set();
@@ -770,14 +779,15 @@ export class Room {
 
   // ---------- 閲覧者ごとの画面用データ ----------
 
+  _nameOf(id) {
+    return this.players.get(id).name;
+  }
+
   // 匿名モードでは、結果発表までは作者（名前・ownerId）を他人に渡さない。
   viewFor(pid) {
     const me = this.players.get(pid);
     if (!me || me.removed) throw new RoomError('no_such_player', '参加者が見つかりません');
-    const anonymous = this.settings.identityMode === 'anonymous';
     const isHost = pid === this.hostId;
-    const showAuthor = !anonymous || this.phase === 'result';
-    const nameOf = (id) => this.players.get(id).name;
 
     const view = {
       code: this.code,
@@ -787,17 +797,8 @@ export class Room {
       hostId: this.hostId,
       presenterId: this.presenterId,
       chooserId: this.phase === 'vote' ? this.chooserId : null,
-      me: { id: pid, name: me.name, isHost, spectator: Boolean(me.spectator), nextSpectator: me.nextSpectator ?? null, isPresenter: pid === this.presenterId, isChooser: this.phase === 'vote' && pid === this.chooserId, canAssignPresenter: this.phase === 'topic' && canAssignPresenter(this, pid), canAssignChooser: this.phase === 'vote' && canAssignChooser(this, pid), canReclaim: isHost && ((this.phase === 'topic' && this.presenterId !== this.hostId) || (this.phase === 'vote' && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId)) },
-      players: activePlayers(this).map((p) => ({
-        id: p.id,
-        name: p.name,
-        connected: p.connected,
-        isHost: p.id === this.hostId,
-        isPresenter: p.id === this.presenterId,
-        spectator: Boolean(p.spectator),
-        answered: this.answers.has(p.id),
-        voted: this.votes.has(p.id),
-      })),
+      me: this._meView(me),
+      players: this._playersView(),
       // お題は確定するまで出題者本人にだけ見せる（決定してから全員で考える）
       topic: this.topicConfirmed || pid === this.presenterId ? this.topic : null,
       topicConfirmed: this.topicConfirmed,
@@ -813,66 +814,113 @@ export class Room {
       history: this._historyView(),
     };
 
-    if (['reveal', 'vote', 'result'].includes(this.phase)) {
-      const visible = this._visibleAnswers();
-      const groups = this._liveGroups();
-      const groupNo = (id) => { const i = groups.findIndex((g) => g.includes(id)); return i < 0 ? null : i + 1; };
-      const toView = (a) => ({
-        answerId: a.id,
-        text: a.text,
-        mine: a.ownerId === pid,
-        revealed: a.revealed,
-        author: showAuthor ? nameOf(a.ownerId) : null,
-      });
-      view.answers = visible
+    if (['reveal', 'vote', 'result'].includes(this.phase)) Object.assign(view, this._answersView(me));
+    if (this.phase === 'answer' && this.answerStartedAt) view.answerSec = Math.max(0, Math.floor((Date.now() - this.answerStartedAt) / 1000)); // 回答待ちの経過時間（画面で秒を進める）
+    view.bombed = this.bombed;
+    if (this.phase === 'vote') {
+      view.pendingCount = this._pending().count;
+      view.myVote = this.settings.chooserMode === 'one' ? this.choice : (this.votes.get(pid) ?? null);
+    }
+    if (this.phase === 'result' && this.result) view.result = this._resultView();
+    return view;
+  }
+
+  // 自分自身の情報と、いま使える操作の可否
+  _meView(me) {
+    const pid = me.id;
+    const isHost = pid === this.hostId;
+    const topicPhase = this.phase === 'topic';
+    const votePhase = this.phase === 'vote';
+    return {
+      id: pid,
+      name: me.name,
+      isHost,
+      spectator: Boolean(me.spectator),
+      nextSpectator: me.nextSpectator ?? null,
+      isPresenter: pid === this.presenterId,
+      isChooser: votePhase && pid === this.chooserId,
+      canAssignPresenter: topicPhase && canAssignPresenter(this, pid),
+      canAssignChooser: votePhase && canAssignChooser(this, pid),
+      canReclaim: isHost && ((topicPhase && this.presenterId !== this.hostId) || (votePhase && this.settings.chooserMode === 'one' && this.chooserId !== this.hostId)),
+    };
+  }
+
+  _playersView() {
+    return activePlayers(this).map((p) => ({
+      id: p.id,
+      name: p.name,
+      connected: p.connected,
+      isHost: p.id === this.hostId,
+      isPresenter: p.id === this.presenterId,
+      spectator: Boolean(p.spectator),
+      answered: this.answers.has(p.id),
+      voted: this.votes.has(p.id),
+    }));
+  }
+
+  // 開示以降の回答まわり（answers・pool・unrevealedCount と、開示中だけ unrevealed）
+  _answersView(me) {
+    const pid = me.id;
+    const anonymous = this.settings.identityMode === 'anonymous';
+    const isHost = pid === this.hostId;
+    const showAuthor = !anonymous || this.phase === 'result';
+    const visible = this._visibleAnswers();
+    const groups = this._liveGroups();
+    const hidden = visible.filter((a) => !a.revealed);
+
+    const part = {
+      answers: visible
         .filter((a) => a.revealed)
         .sort((a, b) => a.revealSeq - b.revealSeq)
-        .map(toView);
-      const hidden = visible.filter((a) => !a.revealed);
-      view.unrevealedCount = hidden.length;
+        .map((a) => ({
+          answerId: a.id,
+          text: a.text,
+          mine: a.ownerId === pid,
+          revealed: a.revealed,
+          author: showAuthor ? this._nameOf(a.ownerId) : null,
+        })),
+      unrevealedCount: hidden.length,
       // 全部の回答を、位置が変わらない並びで出す（未開示は中身なし＝黒マス）。匿名の間は、自分の未開示マスも印を付けない。
-      view.pool = this._poolSorted(visible, anonymous).map((a) => ({
+      pool: this._poolSorted(visible, anonymous).map((a) => ({
         answerId: a.id,
         revealed: a.revealed,
         text: a.revealed ? a.text : null,
         mine: a.ownerId === pid && (a.revealed || !anonymous),
-        group: a.revealed ? groupNo(a.id) : null,
-        author: anonymous ? null : nameOf(a.ownerId),
+        group: a.revealed ? groupNoIn(groups, a.id) : null,
+        author: anonymous ? null : this._nameOf(a.ownerId),
         canReveal: this.phase === 'reveal' && !a.revealed && (anonymous ? isHost : a.ownerId === pid),
         canVote: this.phase === 'vote' && a.revealed && !this._selfOnly(pid, a.id) && ((this.settings.chooserMode === 'all' && !me.spectator) || (this.settings.chooserMode === 'one' && pid === this.chooserId)),
         canGroup: isHost && a.revealed && (this.phase === 'reveal' || this.phase === 'vote'),
-      }));
-      if (this.phase === 'reveal') {
-        // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
-        // 記名：本人が自分の枠をタップして開示する。他の人の枠は、名前だけ付けて黒塗り。
-        // 匿名：主催者が、全部黒塗りのまま1枠ずつ開示する（主催者にも中身と持ち主は伏せる）。本人には、自分の分が先頭に見える。
-        const byId = [...hidden].sort((a, b) => (a.id < b.id ? -1 : 1));
-        if (anonymous && isHost) {
-          view.unrevealed = byId.map((a) => ({ answerId: a.id, mine: false, text: null, author: null, canReveal: true }));
-        } else {
-          const mine = byId.filter((a) => a.ownerId === pid).map((a) => ({ answerId: a.id, mine: true, text: a.text, author: null, canReveal: !anonymous }));
-          const others = byId.filter((a) => a.ownerId !== pid).map(() => ({ answerId: null, mine: false, text: null, author: null, canReveal: false }));
-          if (!anonymous) byId.filter((a) => a.ownerId !== pid).forEach((a, i) => { others[i].author = nameOf(a.ownerId); });
-          view.unrevealed = [...mine, ...others];
-        }
-      }
+      })),
+    };
+    if (this.phase === 'reveal') part.unrevealed = this._unrevealedView(hidden, pid, anonymous);
+    return part;
+  }
+
+  // 未開示の回答は「黒塗りの枠」として全員に見せる。中身を見られるのは本人だけ（先頭に出す）。
+  // 記名：本人が自分の枠をタップして開示する。他の人の枠は、名前だけ付けて黒塗り。
+  // 匿名：主催者が、全部黒塗りのまま1枠ずつ開示する（主催者にも中身と持ち主は伏せる）。本人には、自分の分が先頭に見える。
+  _unrevealedView(hidden, pid, anonymous) {
+    const byId = [...hidden].sort((a, b) => (a.id < b.id ? -1 : 1));
+    if (anonymous && pid === this.hostId) {
+      return byId.map((a) => ({ answerId: a.id, mine: false, text: null, author: null, canReveal: true }));
     }
-    if (this.phase === 'answer' && this.answerStartedAt) view.answerSec = Math.max(0, Math.floor((Date.now() - this.answerStartedAt) / 1000)); // 回答待ちの経過時間（画面で秒を進める）
-    view.bombed = this.bombed;
-    if (this.phase === 'vote') view.pendingCount = this._pending().count;
-    if (this.phase === 'vote') view.myVote = this.settings.chooserMode === 'one' ? this.choice : (this.votes.get(pid) ?? null);
-    if (this.phase === 'result' && this.result) {
-      view.result = {
-        winners: [...this.result.winners],
-        tie: this.result.tie,
-        noAnswer: Boolean(this.result.noAnswer),
-        mode: this.result.mode ?? 'all',
-        tallies: this.result.tallies.map((t) => {
-          const a = this._findAnswer(t.answerId);
-          return { answerId: t.answerId, text: a?.text ?? '', votes: t.votes, author: nameOf(t.ownerId), group: t.group ?? null };
-        }),
-      };
-    }
-    return view;
+    const mine = byId.filter((a) => a.ownerId === pid).map((a) => ({ answerId: a.id, mine: true, text: a.text, author: null, canReveal: !anonymous }));
+    const others = byId.filter((a) => a.ownerId !== pid).map(() => ({ answerId: null, mine: false, text: null, author: null, canReveal: false }));
+    if (!anonymous) byId.filter((a) => a.ownerId !== pid).forEach((a, i) => { others[i].author = this._nameOf(a.ownerId); });
+    return [...mine, ...others];
+  }
+
+  _resultView() {
+    return {
+      winners: [...this.result.winners],
+      tie: this.result.tie,
+      noAnswer: Boolean(this.result.noAnswer),
+      mode: this.result.mode ?? 'all',
+      tallies: this.result.tallies.map((t) => {
+        const a = this._findAnswer(t.answerId);
+        return { answerId: t.answerId, text: a?.text ?? '', votes: t.votes, author: this._nameOf(t.ownerId), group: t.group ?? null };
+      }),
+    };
   }
 }
