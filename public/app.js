@@ -855,6 +855,33 @@ function actionBar() {
 
 // ---------- シート（メニューなど）と確認 ----------
 
+// 遊び方（public/howto.md）：初めて開くときに読み込んで、控えておく。見出しと箇条書きと太字だけの、簡単な変換。
+let howtoHtml = null, howtoLoading = false;
+function mdToHtml(md) {
+  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const out = [];
+  let list = null;
+  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of md.split('\n')) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^(#{1,3})\s+(.*)$/))) { close(); out.push(m[1].length === 1 ? '' : `<h2>${inline(m[2])}</h2>`); }
+    else if ((m = line.match(/^\d+\.\s+(.*)$/))) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = line.match(/^-\s+(.*)$/))) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (line === '') close();
+    else { close(); out.push(`<p>${inline(line)}</p>`); }
+  }
+  close();
+  return out.join('');
+}
+function loadHowto() {
+  if (howtoHtml !== null || howtoLoading) return;
+  howtoLoading = true;
+  fetch('/howto.md').then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then((t) => { howtoHtml = mdToHtml(t); })
+    .catch(() => { howtoHtml = '<p class="hint">読み込めませんでした。もう一度開いてください。</p>'; howtoLoading = false; setTimeout(() => { howtoHtml = null; }, 0); })
+    .finally(() => { howtoLoading = false; if (ui.sheet?.kind === 'howto') render(); });
+}
+
 function sheetHtml() {
   if (!ui.sheet) return '';
   const v = view, k = ui.sheet.kind, host = v.me.isHost;
@@ -868,6 +895,7 @@ function sheetHtml() {
         ${item('', 'data-do="share"', '招待リンクを共有')}
         ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
         ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`)}
+        ${item('', 'data-do="sheet" data-kind="howto"', '遊び方')}
       </div>
       ${host ? `<div class="group"><p class="group-label">主催者</p>
         ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
@@ -925,6 +953,9 @@ function sheetHtml() {
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
+  } else if (k === 'howto') {
+    loadHowto();
+    inner = `<h3>遊び方</h3><div class="howto">${howtoHtml ?? '<p class="hint">読み込んでいます…</p>'}</div>`;
   } else if (k === 'players') {
     // 全員が見られる。外せるのは主催者だけ（自分自身はタップしても何も起きない）
     const row = (p) => {

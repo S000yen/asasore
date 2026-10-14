@@ -25,6 +25,7 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
@@ -34,7 +35,7 @@ const MIME = {
 const BUILD = (() => {
   try {
     const h = createHash('sha1');
-    for (const f of ['index.html', 'app.js', 'style.css']) h.update(readFileSync(path.join(PUBLIC_DIR, f)));
+    for (const f of ['index.html', 'app.js', 'style.css', 'howto.md']) h.update(readFileSync(path.join(PUBLIC_DIR, f)));
     return h.digest('hex').slice(0, 10);
   } catch { return 'dev'; }
 })();

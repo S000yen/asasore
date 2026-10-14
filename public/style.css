@@ -728,3 +728,12 @@ body.shake #app { animation: shake .7s linear both; }
 .prow .tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgba(85, 101, 127, .15); font-size: 11px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
 .prow .badge { margin-right: 2px; }
 .item:disabled { opacity: .4; pointer-events: none; }
+
+/* 遊び方 */
+.howto { font-size: 15px; line-height: 1.75; color: var(--ink); }
+.howto h2 { margin: 20px 0 6px; font-size: 16px; color: var(--ink); }
+.howto p { margin: 0 0 8px; }
+.howto ul, .howto ol { margin: 0 0 8px; padding-left: 22px; }
+.howto li { margin: 0 0 6px; }
+.howto b { font-weight: 700; }
+body[data-phase="vote"] .sheet .howto h2 { color: var(--ink); }
