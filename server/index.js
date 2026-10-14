@@ -111,7 +111,7 @@ function notifyAll(entry, text) {
 }
 
 function describe(room, ev) {
-  const name = (id) => room.players.get(id)?.name ?? '誰か';
+  const name = (id) => room.playerName(id) ?? '誰か';
   switch (ev?.type) {
     case 'host_transferred':
       return ev.how === 'auto'
@@ -249,13 +249,9 @@ function handleAct(entry, pid, msg, clientId) {
     case 'allowRejoin':
       room.allowRejoin(pid, msg.to);
       break;
-    case 'leave': {
-      const others = [...room.players.values()].filter((p) => !p.removed && p.connected && p.id !== pid);
-      if (pid === room.hostId && others.length > 0) {
-        throw new RoomError('transfer_first', '主催者は、先に別の人へ主催者を譲渡してから退出してください');
-      }
+    case 'leave':
+      room.leave(pid);
       return { leave: true };
-    }
     case 'closeRoom':
       room.close(pid);
       return { closed: true };
@@ -334,7 +330,6 @@ wss.on('connection', (ws) => {
         }
         if (out.leave) {
           const set = entry.sockets.get(ctx.pid);
-          entry.room.disconnect(ctx.pid);
           for (const s of set ?? []) {
             send(s, { t: 'left' });
             s.close();

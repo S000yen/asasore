@@ -161,6 +161,25 @@ export class Room {
     p.disconnectedAt = now;
   }
 
+  // 自分の意思での退出。主催者は、ほかに接続中の人がいるうちは、先に主催者を譲渡する必要がある。
+  leave(by, now = Date.now()) {
+    const others = connectedPlayers(this).filter((p) => p.id !== by);
+    if (by === this.hostId && others.length > 0) {
+      throw new RoomError('transfer_first', '主催者は、先に別の人へ主催者を譲渡してから退出してください');
+    }
+    this.disconnect(by, now);
+  }
+
+  // 参加者の表示名（削除された人も含む）。いなければ undefined。
+  playerName(id) {
+    return this.players.get(id)?.name;
+  }
+
+  // 接続中の参加者の数（観戦中の人も含む）
+  connectedCount() {
+    return connectedPlayers(this).length;
+  }
+
   // 定期的に呼ぶ。猶予を過ぎた主催者・出題者の引き継ぎと、空き部屋の終了判定をする。
   tick(now = Date.now()) {
     const events = [];
