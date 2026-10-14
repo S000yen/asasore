@@ -693,7 +693,7 @@ body.shake #app { animation: shake .7s linear both; }
 .seg .btn.on + .btn, .seg .btn:has(+ .btn.on) { border-color: var(--ink); }
 
 /* 役割は枠ではなく、小さなアイコンで示す（主催＝旗、観戦＝幽霊）。自分だけは、色を変える */
-.badge { display: inline-flex; margin-right: 4px; vertical-align: -4px; color: var(--stamp); }
+.badge { display: inline-flex; margin-right: 1px; vertical-align: -4px; color: var(--stamp); }
 .badge svg { width: 19px; height: 19px; stroke-width: 2.2; }
 .badge.spec { color: var(--ink-soft); }
 .sprite.c0 .badge.spec { color: var(--ink-soft); }
