@@ -519,7 +519,7 @@ function roomHtml() {
       <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><b class="code">${esc(v.code)}</b></button>
       <div class="round">${v.round ? `第${v.round}問` : ''}</div>
       <div class="bar-right">
-        ${v.history.length ? '<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>' : ''}
+        ${'<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>'}
         <button class="icon" data-do="openMenu" aria-label="メニュー"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5a8.5 6 0 0 1 17 0z"/><path d="M2.5 14h19"/><path d="M4.5 17.5h15v.5a2.5 2.5 0 0 1-2.5 2.5h-10a2.5 2.5 0 0 1-2.5-2.5z"/></svg></button>
       </div>
     </header>
@@ -872,7 +872,7 @@ function sheetHtml() {
       ${host ? `<div class="group"><p class="group-label">主催者</p>
         ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
         ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
-        ${item('', 'data-do="resetRoom"', '記録をリセット')}
+        ${item('', v.history.length ? 'data-do="resetRoom"' : 'disabled', '記録をリセット')}
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
@@ -899,7 +899,8 @@ function sheetHtml() {
     const rr = [...rate].map(([n, t]) => [n, t.all ? (t.got / t.all) * 100 : 0]).sort((x, y) => y[1] - x[1]);
     const maxR = Math.max(1, ...rr.map(([, p]) => p));
     const rateGraph = rounds ? `<h3 class="sub">得票率</h3><div class="graph rate">${rr.map(([n, p]) => `<div class="g-row${p > 0 && p === maxR ? ' top' : ''}"><span class="g-name">${esc(n)}</span><span class="g-track"><i style="width:${Math.max(4, (p / maxR) * 100)}%"></i></span><span class="g-val">${Math.round(p)}<small>%</small></span></div>`).join('')}</div>` : '';
-    inner = `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
+    if (!v.history.length) inner = '<h3>これまでの記録</h3><p class="hint">記録はありません</p>';
+    else inner = `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
         ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${esc(e.author)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
