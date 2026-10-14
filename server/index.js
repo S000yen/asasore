@@ -13,6 +13,7 @@ import { RoomError } from './roles.js';
 import { TopicPool } from './topics.js';
 import { handleAdmin } from './admin.js';
 import { describe } from './messages.js';
+import { handleAct } from './actions.js';
 import { createStoreFromEnv } from './store.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -116,122 +117,6 @@ function closeRoom(code, entry) {
   rooms.delete(code);
 }
 
-// ---------- 操作の受け付け ----------
-
-function handleAct(entry, pid, msg, clientId) {
-  const { room } = entry;
-  let ev;
-  switch (msg.a) {
-    case 'setSettings':
-      room.setSettings(pid, msg.patch);
-      break;
-    case 'advance': {
-      const r = room.advance(pid, { force: Boolean(msg.force) });
-      if (r.needConfirm) return { needConfirm: r };
-      break;
-    }
-    case 'setTopic':
-      room.setTopic(pid, { hiragana: msg.hiragana, theme: msg.theme });
-      break;
-    case 'drawTopic': { // part: 'hiragana' | 'theme' | 'both'。手入力中の内容があれば、引き直さない側はそれを残す
-      if (!['hiragana', 'theme', 'both'].includes(msg.part)) throw new RoomError('bad_request', '引き直しの指定が正しくありません');
-      const current = {
-        hiragana: String(msg.hiragana ?? '').trim() || room.topic?.hiragana,
-        theme: String(msg.theme ?? '').trim() || room.topic?.theme,
-      };
-      room.setTopic(pid, topics.draw(current, msg.part, room.drawFilter()));
-      break;
-    }
-    case 'reportTopic': { // 選択中のお題を「おかしい」と報告する。この部屋では二度と出さず、全体の出現率も下げ、題材を引き直す
-      const theme = String(msg.theme ?? '');
-      room.reportTopic(pid, theme);
-      topics.flag(theme, clientId ?? pid);
-      room.setTopic(pid, topics.draw(room.topic, 'theme', room.drawFilter()));
-      break;
-    }
-    case 'confirmTopic': // 手入力の内容が付いていれば、先にそれを反映してから確定する（失敗したらここで止まる）
-      if (msg.hiragana !== undefined || msg.theme !== undefined) {
-        room.setTopic(pid, { hiragana: msg.hiragana, theme: msg.theme });
-      }
-      room.confirmTopic(pid);
-      topics.register(room.topic); // 手動で入れた未登録の題材・組み合わせはここで登録される
-      break;
-    case 'setPresenter':
-      ev = room.setPresenter(pid, msg.to);
-      break;
-    case 'randomPresenter':
-      ev = room.randomPresenter(pid);
-      break;
-    case 'submitAnswer':
-      room.submitAnswer(pid, msg.text);
-      break;
-    case 'withdrawAnswer':
-      room.withdrawAnswer(pid);
-      break;
-    case 'revealOwn':
-      room.revealOwn(pid);
-      break;
-    case 'revealSelected':
-      room.revealSelected(pid, msg.answerId);
-      break;
-    case 'revealAll':
-      room.revealAll(pid);
-      break;
-    case 'vote':
-      room.vote(pid, msg.answerId);
-      break;
-    case 'choose':
-      room.choose(pid, msg.answerId);
-      break;
-    case 'setSpectator':
-      ev = room.setSpectator(pid, msg.spectator);
-      break;
-    case 'resetRoom':
-      ev = room.resetRoom(pid);
-      break;
-    case 'react': { // 反応マークは、状態を変えず、全員に流すだけ
-      const r = room.react(pid, msg.kind);
-      return { react: r };
-    }
-    case 'group':
-      room.group(pid, msg.answerIds);
-      break;
-    case 'ungroup':
-      room.ungroup(pid, msg.answerIds);
-      break;
-    case 'reclaimRole':
-      ev = room.reclaimRole(pid);
-      break;
-    case 'randomChooser':
-      ev = room.randomChooser(pid);
-      break;
-    case 'setChooser':
-      ev = room.setChooser(pid, msg.to);
-      break;
-    case 'rename':
-      room.rename(pid, msg.name);
-      break;
-    case 'transferHost':
-      ev = room.transferHost(pid, msg.to);
-      break;
-    case 'removePlayer':
-      room.removePlayer(pid, msg.to);
-      break;
-    case 'allowRejoin':
-      room.allowRejoin(pid, msg.to);
-      break;
-    case 'leave':
-      room.leave(pid);
-      return { leave: true };
-    case 'closeRoom':
-      room.close(pid);
-      return { closed: true };
-    default:
-      throw new RoomError('bad_request', '不明な操作です');
-  }
-  return { ev };
-}
-
 // ---------- WebSocket ----------
 
 const wss = new WebSocketServer({ server });
@@ -290,7 +175,7 @@ wss.on('connection', (ws) => {
       } else if (msg.t === 'act') {
         const entry = rooms.get(ctx.code);
         if (!entry || !ctx.pid) throw new RoomError('not_joined', '部屋に入っていません');
-        const out = handleAct(entry, ctx.pid, msg, ctx.clientId);
+        const out = handleAct({ room: entry.room, topics, clientId: ctx.clientId }, ctx.pid, msg);
         if (out.needConfirm) {
           send(ws, { t: 'needConfirm', pending: out.needConfirm.pending, phase: out.needConfirm.phase });
           return;
