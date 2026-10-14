@@ -2,45 +2,22 @@
 // ゲームのルールは room.js が持ち、ここは受け付けと配信だけをする。
 
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { randomInt, createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { randomInt } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
 import { RoomError } from './roles.js';
 import { TopicPool } from './topics.js';
-import { handleAdmin } from './admin.js';
 import { describe } from './messages.js';
 import { handleAct } from './actions.js';
 import { createStoreFromEnv } from './store.js';
+import { computeBuild, createRequestHandler } from './http.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
-const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
 const TICK_MS = 1000;
 const PING_MS = 25000;
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.md': 'text/markdown; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.webmanifest': 'application/manifest+json; charset=utf-8',
-};
-
-// 配信するファイルの版（中身から決める）。開きっぱなしの古い画面が、再接続のときに気づいて自分で読み込み直すために使う。
-const BUILD = (() => {
-  try {
-    const h = createHash('sha1');
-    for (const f of ['index.html', 'app.js', 'style.css', 'howto.md']) h.update(readFileSync(path.join(PUBLIC_DIR, f)));
-    return h.digest('hex').slice(0, 10);
-  } catch { return 'dev'; }
-})();
+const BUILD = computeBuild();
 
 const startedAt = Date.now();
 const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
@@ -49,32 +26,7 @@ topics.attach(createStoreFromEnv()); // DATABASE_URL があれば、題材と報
 
 // ---------- HTTP ----------
 
-const server = http.createServer(async (req, res) => {
-  try {
-    const url = new URL(req.url, 'http://localhost');
-    if (url.pathname === '/health') { // 動作確認と、休止からの復帰・定期アクセス用
-      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' }).end('ok');
-      return;
-    }
-    if (await handleAdmin(req, res, url, { topics, rooms, build: BUILD, startedAt })) return;
-    let rel = decodeURIComponent(url.pathname);
-    if (rel.endsWith('/')) rel += 'index.html';
-    const file = path.normalize(path.join(PUBLIC_DIR, rel));
-    if (!file.startsWith(PUBLIC_DIR + path.sep)) {
-      res.writeHead(403).end('forbidden');
-      return;
-    }
-    let body = await readFile(file);
-    if (path.basename(file) === 'index.html') body = Buffer.from(body.toString('utf8').replace('</head>', `  <meta name="build" content="${BUILD}">\n</head>`));
-    res.writeHead(200, {
-      'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream',
-      'Cache-Control': 'no-cache',
-    });
-    res.end(body);
-  } catch {
-    res.writeHead(404).end('not found');
-  }
-});
+const server = http.createServer(createRequestHandler({ topics, rooms, build: BUILD, startedAt }));
 
 // ---------- 配信 ----------
 
