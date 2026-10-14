@@ -797,7 +797,7 @@ function resultHtml() {
     ${telop(v.topic)}
     ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
     ${r.noAnswer ? '<div class="allwrong"><b>全員不正解！</b><span>回答がありませんでした</span></div>' : r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
-    <section class="pool">${rows}</section>`;
+    ${rows ? `<section class="pool">${rows}</section>` : ''}`;
 }
 
 function actionBar() {
