@@ -5,7 +5,6 @@
 const STORE = 'asaso.session';
 const CLIENT_STORE = 'asaso.client'; // この端末の匿名ID。「おかしい」の報告を、端末ごとに1回と数えるために使う
 const NAME_STORE = 'asaso.name'; // 自分で付けた表示名（次の部屋でも使う）。未設定なら、部屋ごとに「ユーザーN」になる
-const INPUT_IDS = ['codeInput', 'renameInput', 'answerInput', 'hiraInput', 'themeInput'];
 const $app = document.getElementById('app');
 
 const loadSession = () => {
@@ -250,7 +249,6 @@ function confirmFor(m) {
 
 // ---------- 描画 ----------
 
-// 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
 // 主催者の「まとめを編集」中か。編集中は、完了するまで他の操作ができない。
 const canEditGroups = () => Boolean(view?.me.isHost && ['reveal', 'vote'].includes(view.phase) && view.pool.filter((c) => c.revealed).length >= 2);
 const isEditing = () => ui.editing && canEditGroups();
@@ -348,6 +346,7 @@ function reactBarHtml() {
   return `<div class="reactbar">${Object.entries(MARKS).map(([k, m]) => `<button class="react" ${lock ? 'disabled' : `data-do="react" data-kind="${k}"`} aria-label="${{ like: 'いいね', bad: 'バッド', cheer: '応援', laugh: '笑い' }[k]}">${m}</button>`).join('')}</div>`;
 }
 
+// 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
 function startBand() {
   document.querySelector('.startband')?.remove();
   const el = document.createElement('div');
@@ -415,7 +414,6 @@ const chips = (list, mark) => `<div class="chips">${list.map((p) =>
   `<span class="chip ${p.connected ? '' : 'away'}${p.id === view?.me.id ? ' me' : ''}">${p.isHost ? badgeHost : ''}${escN(p.name, 12)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
 
 const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
-// 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
 const SVG_ATTR = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
 const ICON_PENCIL = `<svg ${SVG_ATTR} width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
@@ -434,13 +432,14 @@ const MENU_ICONS = {
   close: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
 };
 const menuIcon = (k) => `<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MENU_ICONS[k]}</svg>`;
-const ICON_FLAG = `<svg ${SVG_ATTR}><path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/></svg>`; // 主催者＝王冠（名前は昔のまま）
+const ICON_CROWN = `<svg ${SVG_ATTR}><path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/></svg>`; // 主催者の印
 const ICON_GHOST = `<svg ${SVG_ATTR}><path d="M5 21V11a7 7 0 0 1 14 0v10l-2.5-2-2.3 2-2.2-2-2.2 2-2.3-2z"/><path d="M9.5 11v.01M14.5 11v.01"/></svg>`;
-const badgeHost = '<span class="badge" role="img" aria-label="主催者">' + ICON_FLAG + '</span>';
+const badgeHost = '<span class="badge" role="img" aria-label="主催者">' + ICON_CROWN + '</span>';
 const badgeSpec = '<span class="badge spec" role="img" aria-label="観戦中">' + ICON_GHOST + '</span>';
 const ICON_HAMMER = `<svg ${SVG_ATTR}><path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>`;
 const ICON_DOOR = `<svg ${SVG_ATTR}><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>`;
 const ICON_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/></svg>';
+// 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
 const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? 'lg' : n <= 22 ? 'md' : 'sm'; };
 
 // 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
@@ -1110,7 +1109,6 @@ const handlers = {
     render();
   },
   randomChooser() { ui.sheet = null; act('randomChooser'); render(); },
-  // 観戦⇔参戦。回答中までは、すぐ。それ以降は次のラウンドから。
   // 参戦／観戦の切り替え（メニューは開いたまま）。回答中までは、すぐ。それ以降は次のラウンドから。
   setSpectate(d) {
     const want = d.val === 'true';

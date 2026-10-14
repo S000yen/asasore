@@ -21,7 +21,7 @@ import {
   holderAvailable,
   pickSuccessor,
   pickNextInRotation,
-  pickRandomPresenter,
+  pickRandomPlayer,
   normalizeOrder,
 } from './roles.js';
 
@@ -351,7 +351,7 @@ export class Room {
     getActive(this, by);
     if (!canAssignPresenter(this, by)) throw new RoomError('not_allowed', '出題者を指名できるのは、いまの出題者です（不在のときは主催者）');
     this._need('topic');
-    const pick = pickRandomPresenter(this); // 本人も含めて選ぶ
+    const pick = pickRandomPlayer(this); // 本人も含めて選ぶ
     if (!pick) throw new RoomError('no_candidate', '指名できる人がいません');
     return this.setPresenter(by, pick.id);
   }
@@ -623,7 +623,7 @@ export class Room {
   randomChooser(by) {
     getActive(this, by);
     this._need('vote');
-    const pick = pickRandomPresenter(this); // 本人も含めて選ぶ
+    const pick = pickRandomPlayer(this); // 本人も含めて選ぶ
     if (!pick) throw new RoomError('no_candidate', '指名できる人がいません');
     return this.setChooser(by, pick.id);
   }
