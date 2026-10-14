@@ -923,7 +923,7 @@ function sheetHtml() {
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
-      <div class="group"><div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div></div>
+      <div class="group segrow"><div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div></div>
       <div class="group">
         ${item('danger', 'data-do="leave"', '退出する')}
         ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
