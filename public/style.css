@@ -699,3 +699,4 @@ body.shake #app { animation: shake .7s linear both; }
 .sprite.c0 .badge.spec { color: var(--ink-soft); }
 .chip.me { background: var(--telop); color: var(--ink); }
 .progress .chip.me { background: var(--telop); }
+.progress { padding-top: 8px; } .progress h2 { margin-bottom: 14px; }

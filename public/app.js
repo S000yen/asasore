@@ -64,7 +64,8 @@ function connect() {
   sock.onopen = () => {
     backoff = 500;
     ui.connected = true;
-    if (pendingLink) joinFromLink();
+    if (resend) { const m = resend; resend = null; sock.send(JSON.stringify(m)); }
+    else if (pendingLink) joinFromLink();
     else if (session && autoJoin) sendJoin(session.code);
     render();
   };
@@ -72,7 +73,7 @@ function connect() {
     try { onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); }
   };
   sock.onclose = () => {
-    if (ws !== sock) return;
+    if (ws !== sock) return; // つなぎ直しで自分から閉じたものは、無視する
     ws = null;
     ui.connected = false;
     render();
@@ -86,12 +87,36 @@ const sendRaw = (m) => {
   toast('接続しています。少し待ってから、もう一度お試しください');
   return false;
 };
+// 入室・作成のように、返事がないと困る操作。つながっているように見えて実は切れていた（スマホで起きやすい）ときは、
+// 少し待って返事がなければ、つなぎ直して一度だけ送り直す。押したのに何も起きない、をなくす。
+let resend = null;
+let awaiting = null;
+function sendCritical(m) {
+  if (!sendRaw(m)) return false;
+  clearTimeout(awaiting?.timer);
+  awaiting = { m, tries: 0, timer: setTimeout(retryCritical, 2500) };
+  return true;
+}
+function settleCritical() { clearTimeout(awaiting?.timer); awaiting = null; resend = null; }
+function retryCritical() {
+  const a = awaiting;
+  if (!a) return;
+  if (a.tries >= 1) { settleCritical(); ui.joining = false; toast('つながりませんでした。もう一度お試しください'); render(); return; }
+  a.tries += 1;
+  resend = a.m;
+  const old = ws;
+  ws = null;
+  ui.connected = false;
+  try { old?.close(); } catch { /* すでに切れている */ }
+  connect();
+  a.timer = setTimeout(retryCritical, 5000);
+}
 const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
 function sendJoin(code, spectator = false) {
   lastJoinCode = code;
-  sendRaw({ t: 'join', code, name: prefName, clientId, spectator, playerId: session?.code === code ? session.playerId : null });
+  return sendCritical({ t: 'join', code, name: prefName, clientId, spectator, playerId: session?.code === code ? session.playerId : null });
 }
 
 function joinFromLink() {
@@ -121,6 +146,7 @@ function onMessage(m) {
       return;
     }
     case 'joined':
+      settleCritical();
       session = { code: m.code, playerId: m.playerId };
       saveSession(session);
       endMessage = null;
@@ -146,6 +172,7 @@ function onMessage(m) {
       floatMark(m.kind);
       return;
     case 'error':
+      settleCritical();
       ui.joining = false;
       ui.pendingRename = null;
       if (m.code === 'no_room') { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
@@ -927,9 +954,11 @@ const handlers = {
   closeCreate() { ui.createOpen = false; render(); },
   newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
-    if (!sendRaw({ t: 'create', name: prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
+    if (!sendCritical({ t: 'create', name: prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
     autoJoin = true;
     ui.createOpen = false;
+    ui.joining = true; // 押した直後に、反応を見せる
+    render();
   },
   openJoin() {
     ui.joinOpen = true;
@@ -941,7 +970,7 @@ const handlers = {
     const code = drafts.code.trim().toUpperCase();
     if (code.length < 4) return toast('部屋コードを4文字で入力してください');
     autoJoin = true;
-    sendJoin(code, ui.joinWatch);
+    if (sendJoin(code, ui.joinWatch)) { ui.joining = true; render(); }
   },
   setJoinWatch(d) { ui.joinWatch = d.val === 'true'; render(); },
   resume() {
