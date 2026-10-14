@@ -979,7 +979,7 @@ function sheetHtml() {
     // 全員が見られる。外せるのは主催者だけ（自分自身はタップしても何も起きない）
     const row = (p) => {
       const me = p.id === v.me.id;
-      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${escN(p.name, 24)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
+      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${esc(p.name)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
       return host && !me
         ? `<button class="btn prow" data-do="pick" data-kind="remove" data-id="${esc(p.id)}">${inner}</button>`
         : `<div class="prow${me ? ' me' : ''}">${inner}</div>`;
