@@ -796,7 +796,7 @@ function resultHtml() {
   return `
     ${telop(v.topic)}
     ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
-    ${r.noAnswer ? '<div class="allwrong"><b>全員不正解！</b><span>回答がありませんでした</span></div>' : r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
+    ${r.noAnswer || r.winners.length === 0 ? `<div class="allwrong"><b>全員不正解！</b><span>${r.noAnswer ? '回答がありませんでした' : '投票がありませんでした'}</span></div>` : ''}
     ${rows ? `<section class="pool">${rows}</section>` : ''}`;
 }
 
@@ -867,13 +867,13 @@ function sheetHtml() {
       <div class="group">
         ${item('', 'data-do="share"', '招待リンクを共有')}
         ${item('', 'data-do="openRename"', '表示名を変える', esc(v.me.name))}
+        ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`)}
       </div>
       ${host ? `<div class="group"><p class="group-label">主催者</p>
         ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する') : ''}
         ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定')}
         ${item('', 'data-do="resetRoom"', '記録をリセット')}
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る')}
-        ${item('', 'data-do="sheet" data-kind="remove"', '参加者を外す')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
       ${`<div class="group">${item('', 'data-do="toggleSpectate"', (v.me.nextSpectator ?? v.me.spectator) ? '参戦に切り替える' : '観戦に切り替える', v.me.nextSpectator !== null && v.me.nextSpectator !== undefined ? '次のラウンドから' : '')}</div>`}
@@ -924,8 +924,16 @@ function sheetHtml() {
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
-  } else if (k === 'remove') {
-    inner = `<h3>参加者を外す</h3><div class="menu">${pick('remove', others)}</div>`;
+  } else if (k === 'players') {
+    // 全員が見られる。外せるのは主催者だけ（自分自身はタップしても何も起きない）
+    const row = (p) => {
+      const me = p.id === v.me.id;
+      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${esc(p.name)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
+      return host && !me
+        ? `<button class="btn prow" data-do="pick" data-kind="remove" data-id="${esc(p.id)}">${inner}</button>`
+        : `<div class="prow${me ? ' me' : ''}">${inner}</div>`;
+    };
+    inner = `<h3>参加者一覧</h3><div class="plist">${v.players.map(row).join('')}</div>`;
   } else if (k === 'allow') {
     inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
   } else if (k === 'chooser') {

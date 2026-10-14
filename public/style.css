@@ -719,3 +719,11 @@ body.shake #app { animation: shake .7s linear both; }
 .thead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; }
 .thead h2 { margin: 0; }
 .tval { color: var(--ink); font-size: 19px; margin-right: 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* 参加者一覧 */
+.plist { display: grid; gap: 8px; }
+.prow { display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 8px 14px; border: 2px solid var(--ink); border-radius: 12px; background: #fff; color: var(--ink); font-weight: 700; text-align: left; }
+.prow.me { background: var(--telop); }
+.prow .pname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 2px; }
+.prow .tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: rgba(85, 101, 127, .15); font-size: 11px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.prow .badge { margin-right: 2px; }
