@@ -645,11 +645,22 @@ test('観戦：観戦で入れる。回答・投票はできず、人数にも�
   assert.equal(room.advance(A).needConfirm, false); // 観戦者は未投票に数えない
 });
 
-test('観戦：最初の人（主催者）は観戦で入れない。主催者は観戦に切り替えられない', () => {
+test('観戦：最初の人（主催者）は参戦で入る。主催者も観戦に切り替えられて、出題者も任せられる', () => {
   const room = new Room('TEST');
   const A = room.join(null, 'A', 1, { spectator: true }).id;
   assert.equal(room.viewFor(A).me.spectator, false);
-  assert.throws(() => room.setSpectator(A, true), { code: 'host_plays' });
+  const B = room.join(null, 'B', 2).id, C = room.join(null, 'C', 3).id, D = room.join(null, 'D', 4).id;
+  room.setSpectator(A, true); // ロビーなら、すぐ
+  assert.equal(room.viewFor(A).me.spectator, true);
+  room.startRound(A);
+  assert.equal(room.presenterId, A); // 観戦中の主催者が、出題者のまま
+  room.setPresenter(A, B);
+  room.setPresenter(B, A); // 観戦中の人にも任せられる
+  assert.equal(room.presenterId, A);
+  room.setTopic(A, { hiragana: 'あ', theme: 'x' });
+  room.confirmTopic(A);
+  assert.equal(room.phase, 'answer');
+  assert.ok(C && D);
 });
 
 test('観戦：人数は参戦の人だけで数える。観戦から参戦へ切り替えると始められる', () => {
@@ -667,7 +678,6 @@ test('観戦：回答中までは、すぐ切り替わる（回答済みの人�
   const [A, B, C, D] = ['A', 'B', 'C', 'D'].map((n, i) => room.join(null, n, i + 1).id);
   room.startRound(A);
   room.setTopic(A, { hiragana: 'あ', theme: 'x' });
-  assert.throws(() => room.setSpectator(A, true), { code: 'host_plays' });
   room.confirmTopic(A);
   room.submitAnswer(D, 'd');
   const ev = room.setSpectator(D, true); // 回答中なので、すぐ
@@ -701,15 +711,18 @@ test('観戦：開示から先で頼むと、次のラウンドから切り替�
   assert.equal(room.viewFor(D).me.nextSpectator, null);
 });
 
-test('観戦：出題者は観戦できず、観戦中の人は出題者・選ぶ人に任せられない。ランダムにも当たらない', () => {
+test('観戦：観戦中の人にも出題者を任せられるが、ランダムには当たらない。出題者のまま観戦にもなれる', () => {
   const room = new Room('TEST');
   const [A, B, C, D] = ['A', 'B', 'C', 'D'].map((n, i) => room.join(null, n, i + 1).id);
   room.setSpectator(D, true);
   room.startRound(A);
-  assert.throws(() => room.setPresenter(A, D), { code: 'spectating' });
   for (let i = 0; i < 30; i++) { room.randomPresenter(A); assert.notEqual(room.presenterId, D); if (room.presenterId !== A) room.reclaimRole(A); } // 主催者に戻してから、また引く
-  room.setPresenter(A, B);
-  assert.throws(() => room.setSpectator(B, true), { code: 'presenter_plays' });
+  room.setPresenter(A, D);
+  assert.equal(room.presenterId, D);
+  room.setPresenter(D, B);
+  room.setSpectator(B, true); // 出題者が観戦になっても、出題者のまま
+  assert.equal(room.presenterId, B);
+  assert.ok(C);
 });
 
 test('部屋のリセット：記録・問題数・使った題材を消してロビーへ。参加者と設定は残る', () => {
@@ -730,4 +743,90 @@ test('部屋のリセット：記録・問題数・使った題材を消して�
   assert.equal(room.usedThemes.size, 0);
   room.startRound(A); // そのまま、第1問から始められる
   assert.equal(room.viewFor(A).round, 1);
+});
+
+// ---------- 制限時間 ----------
+
+test('制限時間：未回答がいると爆弾が爆発して、開示へ進む', () => {
+  const { room, ids } = setup(3);
+  const [A, B, C] = ids;
+  room.setSettings(A, { timeLimit: '60' });
+  assert.equal(room.settings.timeLimit, 60);
+  assert.throws(() => room.setSettings(A, { timeLimit: 45 }), { code: 'bad_setting' });
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'ねこ');
+  room.submitAnswer(B, 'いぬ');
+  const t0 = room.answerStartedAt;
+  assert.deepEqual(room.tick(t0 + 59000), []);
+  const ev = room.tick(t0 + 60000);
+  assert.equal(ev.length, 1);
+  assert.equal(ev[0].type, 'time_up');
+  assert.equal(ev[0].bomb, true);
+  assert.deepEqual(ev[0].names, ['C']);
+  assert.equal(room.phase, 'reveal');
+  assert.equal(room.viewFor(A).bombed, true);
+  assert.equal(room.viewFor(A).pool.length, 2);
+  assert.ok(C);
+});
+
+test('制限時間：全員回答済みなら爆弾なしで開示へ', () => {
+  const { room, ids } = setup(3);
+  room.setSettings(ids[0], { timeLimit: 30 });
+  toAnswerPhase(room, ids);
+  ids.forEach((id, i) => room.submitAnswer(id, ['a', 'b', 'c'][i]));
+  const ev = room.tick(room.answerStartedAt + 30000);
+  assert.equal(ev[0].bomb, false);
+  assert.equal(room.phase, 'reveal');
+  assert.equal(room.viewFor(ids[0]).bombed, false);
+});
+
+test('制限時間：回答が一つもなければ全員不正解で、次のラウンドへ進める', () => {
+  const { room, ids } = setup(3);
+  room.setSettings(ids[0], { timeLimit: 30 });
+  toAnswerPhase(room, ids);
+  const ev = room.tick(room.answerStartedAt + 31000);
+  assert.equal(ev[0].noAnswer, true);
+  assert.equal(room.phase, 'result');
+  const v = room.viewFor(ids[1]);
+  assert.equal(v.result.noAnswer, true);
+  assert.deepEqual(v.result.winners, []);
+  assert.equal(v.history[0].entries.length, 0); // 履歴にも、空のラウンドが入ってエラーにならない
+  room.startRound(ids[0]); // 次のラウンドへ
+  assert.equal(room.phase, 'topic');
+  assert.equal(room.viewFor(ids[0]).bombed, false);
+  assert.equal(room.viewFor(ids[0]).history.length, 1);
+});
+
+test('制限なしなら、時間が過ぎても進まない／回答ゼロでも手動で進める', () => {
+  const { room, ids } = setup(3);
+  toAnswerPhase(room, ids);
+  assert.deepEqual(room.tick(room.answerStartedAt + 10 ** 9), []);
+  assert.equal(room.phase, 'answer');
+  room.advance(ids[0], { force: true });
+  assert.equal(room.phase, 'result');
+  assert.equal(room.viewFor(ids[0]).result.noAnswer, true);
+});
+
+test('選ぶ人に、観戦中の人を指名できる', () => {
+  const { room, ids } = setup(4);
+  const [A, B, C, W] = ids;
+  room.setSettings(A, { chooserMode: 'one' });
+  room.setSpectator(W, true);
+  toAnswerPhase(room, ids);
+  room.submitAnswer(A, 'a'); room.submitAnswer(B, 'b'); room.submitAnswer(C, 'c');
+  room.advance(A);
+  room.revealAll(A);
+  room.advance(A);
+  assert.equal(room.phase, 'vote');
+  room.setChooser(A, W);
+  assert.equal(room.chooserId, W);
+  const v = room.viewFor(W);
+  assert.equal(v.me.isChooser, true);
+  assert.ok(v.pool.some((c) => c.canVote));
+  const pick = v.pool.find((c) => c.canVote);
+  room.choose(W, pick.answerId);
+  assert.throws(() => room.vote(W, pick.answerId), { code: 'spectating' });
+  room.advance(W);
+  assert.equal(room.phase, 'result');
+  assert.equal(room.viewFor(A).result.winners.length, 1);
 });

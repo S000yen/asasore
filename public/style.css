@@ -517,8 +517,6 @@ button.who:active { background: #fff; }
 .sprite.away { opacity: .45; }
 
 /* 主催者の目印：赤い枠（文字は出さない） */
-.sprite.host { border-color: var(--stamp); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--stamp); }
-.chip.host { box-shadow: inset 0 0 0 2px var(--stamp); }
 
 /* 長い名前の対策：枠からはみ出さず、省略表示にする（跳ね回る札も、あの枠の中には収める） */
 .chip { max-width: 100%; min-width: 0; }
@@ -647,7 +645,57 @@ body[data-phase="vote"] .groupbar .btn[disabled] { opacity: .45; }
 }
 @media (prefers-reduced-motion: reduce) { .float { animation: none; bottom: 140px; opacity: 0; animation: floatfade 1.2s ease-out forwards; } @keyframes floatfade { 0% { opacity: 1; } 100% { opacity: 0; } } }
 
-.sprite.spec { border-style: dashed; opacity: .6; }
-.join-seg { display: flex; gap: 6px; margin: 10px 0; }
-.join-seg .btn { flex: 1; }
-.join-seg .btn.on { background: var(--ink); color: var(--telop); }
+.sprite.spec, .sprite.spec.c0 { border-style: dashed; background: rgba(255, 255, 255, .55); color: var(--ink); }
+.sprite.spec.c1 { border-style: dashed; }
+
+.join-seg { margin: 10px 0; }
+
+/* 回答待ちの時間（ポップな丸いバッジ）。見出しの右端に置き、回答数とは間をあける */
+.progress h2 { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.timer {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px 4px 10px; border: 3px solid var(--ink); border-radius: 999px;
+  background: var(--telop); color: var(--ink); font-family: var(--display); font-size: 22px; line-height: 1.1; letter-spacing: .04em;
+  font-variant-numeric: tabular-nums; box-shadow: 3px 3px 0 var(--ink); transform: rotate(-2deg);
+}
+.timer .ticon { font-style: normal; font-size: 18px; }
+.timer b { font-weight: 400; min-width: 2.6ch; text-align: right; }
+.timer.limited { background: #fff; }
+.timer.low {
+  background: var(--stamp); color: #fff; border-color: #fff; box-shadow: 3px 3px 0 var(--ink), 0 0 0 3px var(--stamp);
+  font-size: 30px; animation: timerlow .5s ease-in-out infinite alternate;
+}
+.timer.low .ticon { font-size: 26px; animation: wick .25s linear infinite alternate; }
+@keyframes timerlow { from { transform: rotate(-3deg) scale(1); } to { transform: rotate(3deg) scale(1.12); } }
+@keyframes wick { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
+
+/* 爆弾の爆発 */
+.bomb { position: fixed; inset: 0; z-index: 70; pointer-events: none; display: grid; place-items: center; }
+.bomb .flash { position: absolute; inset: 0; background: #fff; animation: bombflash 1.2s ease-out both; }
+.bomb .boom { font-size: 40vmin; line-height: 1; animation: boom 1.8s cubic-bezier(.2, 1.4, .4, 1) both; }
+.bomb .boomtext {
+  position: absolute; top: 62%; padding: 6px 22px; background: var(--stamp); color: #fff; border: 4px solid #fff; border-radius: 6px;
+  font-family: var(--display); font-size: 40px; letter-spacing: .1em; transform: rotate(-4deg); animation: boomtext 1.9s ease-out both;
+}
+@keyframes bombflash { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes boom { 0% { transform: scale(.1); opacity: 0; } 15% { transform: scale(1.1); opacity: 1; } 70% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes boomtext { 0%, 12% { transform: translateY(20px) rotate(-4deg) scale(.4); opacity: 0; } 25% { transform: rotate(-4deg) scale(1.1); opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+body.shake #app { animation: shake .7s linear both; }
+@keyframes shake { 0%, 100% { transform: none; } 10% { transform: translate(-8px, 5px); } 20% { transform: translate(7px, -6px); } 30% { transform: translate(-6px, -4px); } 40% { transform: translate(6px, 5px); } 50% { transform: translate(-4px, 3px); } 60% { transform: translate(4px, -3px); } 80% { transform: translate(-2px, 1px); } }
+@media (prefers-reduced-motion: reduce) { .timer.low, .timer.low .ticon, body.shake #app { animation: none; } }
+
+/* 回答が一つもなかったとき */
+.allwrong { display: grid; gap: 6px; margin: 18px 0; padding: 28px 16px; border: 4px solid var(--ink); border-radius: 10px; background: var(--stamp); color: #fff; text-align: center; transform: rotate(-1.5deg); }
+.allwrong b { font-family: var(--display); font-size: 38px; font-weight: 400; letter-spacing: .08em; }
+.allwrong span { font-size: 14px; font-weight: 700; opacity: .9; }
+
+/* 選んでいる側の二重線をやめて、間の線は1本だけに */
+.seg .btn.on { box-shadow: none; }
+.seg .btn.on + .btn, .seg .btn:has(+ .btn.on) { border-color: var(--ink); }
+
+/* 役割は枠ではなく、小さな札で示す。自分だけは、色を変える */
+.badge { display: inline-block; margin-right: 5px; padding: 1px 6px; border-radius: 4px; background: var(--stamp); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .05em; line-height: 1.5; vertical-align: 1px; }
+.badge.spec { background: var(--ink-soft); }
+.sprite.c1 .badge.spec { background: var(--ink); }
+.chip.me { background: var(--telop); color: var(--ink); }
+.progress .chip.me { background: var(--telop); }
+.progress h2 { padding-right: 6px; }

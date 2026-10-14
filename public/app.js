@@ -227,6 +227,7 @@ function trackPhase() {
   if (key !== lastPhaseKey) {
     ui.sel.clear(); // 段階が変わったら、編集と選択は解く
     ui.editing = false;
+    if (view?.bombed && (phase === 'reveal' || phase === 'result') && lastPhaseKey.endsWith(':answer')) bomb();
     if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
     if (phase === 'result' && lastPhaseKey.endsWith(':vote') && view.result?.winners.length) confetti();
     lastPhaseKey = key;
@@ -322,6 +323,19 @@ function startBand() {
   setTimeout(() => el.remove(), 1700);
 }
 
+// 時間切れで、未回答の人がいたまま進んだとき：爆弾が爆発する
+function bomb() {
+  document.querySelector('.bomb')?.remove();
+  const el = document.createElement('div');
+  el.className = 'bomb';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<div class="flash"></div><div class="boom">💥</div><div class="boomtext">時間切れ！</div>';
+  document.body.append(el);
+  document.body.classList.add('shake');
+  setTimeout(() => document.body.classList.remove('shake'), 700);
+  setTimeout(() => el.remove(), 2100);
+}
+
 function render() {
   if (composing) { pendingRender = true; return; } // 日本語入力の変換中は作り直さない
   trackPhase();
@@ -363,7 +377,7 @@ function fitTheme() {
 }
 
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
-  `<span class="chip ${p.connected ? '' : 'away'}${p.isHost ? ' host' : ''}">${esc(p.name)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
+  `<span class="chip ${p.connected ? '' : 'away'}${p.id === view?.me.id ? ' me' : ''}">${p.isHost ? '<span class="badge">主催</span>' : ''}${esc(p.name)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
 
 const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
 // 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
@@ -376,10 +390,29 @@ const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? '
 
 // 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
 const progress = (label, list, done, side = '') => `<div class="progress"><h2><span>${label} ${list.filter(done).length}/${list.length}</span>${side}</h2>${chips(list, done)}</div>`;
-// 回答待ちの経過時間：サーバーから届いた秒に、受け取ってからの時間を足して、1秒ごとに進める
+// 回答待ちの時間：サーバーから届いた秒に、受け取ってからの時間を足して進める。制限時間があれば、残りを数える。
 const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 const elapsedNow = () => (view?.answerSec ?? 0) + Math.floor((performance.now() - viewAt) / 1000);
-setInterval(() => { const el = document.getElementById('elapsed'); if (el && view?.phase === 'answer') el.textContent = clock(elapsedNow()); }, 500);
+const timerInfo = () => {
+  const limit = view?.settings.timeLimit ?? 0;
+  if (!limit) return { text: clock(elapsedNow()), low: false, limit: 0 };
+  const left = Math.max(0, limit - elapsedNow());
+  return { text: clock(left), low: left <= 10, limit };
+};
+const timerHtml = () => {
+  const t = timerInfo();
+  return `<span class="timer${t.limit ? ' limited' : ''}${t.low ? ' low' : ''}" id="timer"><i class="ticon" aria-hidden="true">${t.limit ? (t.low ? '💣' : '⏳') : '⏱'}</i><b id="timerText">${t.text}</b></span>`;
+};
+setInterval(() => {
+  const el = document.getElementById('timer');
+  if (!el || view?.phase !== 'answer') return;
+  const t = timerInfo();
+  const tx = document.getElementById('timerText');
+  if (tx && tx.textContent !== t.text) tx.textContent = t.text;
+  el.classList.toggle('low', t.low);
+  const ic = el.querySelector('.ticon');
+  if (ic && t.limit) ic.textContent = t.low ? '💣' : '⏳';
+}, 250);
 
 const telop = (t) => t
   ? `<div class="telop"><div class="tile" id="tpTile">${esc(t.hiragana || '？')}</div><div class="telop-text"><span class="tiny">で始まる</span><strong id="tpTheme">${esc(t.theme)}</strong><span class="tiny">といえば？</span></div></div>`
@@ -514,7 +547,7 @@ function rosterHtml() {
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
   const items = players.map((p) => {
     const s = spriteOf(p);
-    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.isHost ? ' host' : ''}${p.spectator ? ' spec' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${esc(p.name)}</div>`;
+    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.spectator ? ' spec' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${spriteTf(s)}">${p.isHost ? '<span class="badge">主催</span>' : ''}${p.spectator ? '<span class="badge spec">観戦</span>' : ''}${esc(p.name)}</div>`;
   }).join('');
   const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
   return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
@@ -628,7 +661,7 @@ function answerHtml() {
     </div>`;
   return `
     ${telop(v.topic)}${box}
-    ${progress('回答状況', v.players.filter((p) => !p.spectator), (p) => p.answered, `<span class="elapsed" id="elapsed">${clock(elapsedNow())}</span>`)}`;
+    ${progress('回答状況', v.players.filter((p) => !p.spectator), (p) => p.answered, timerHtml())}`;
 }
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
@@ -716,7 +749,7 @@ function resultHtml() {
   return `
     ${telop(v.topic)}
     ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
-    ${r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
+    ${r.noAnswer ? '<div class="allwrong"><b>全員不正解！</b><span>回答がありませんでした</span></div>' : r.winners.length === 0 ? '<p class="hint">正解なし（投票がありません）</p>' : ''}
     <section class="pool">${rows}</section>`;
 }
 
@@ -769,7 +802,7 @@ function actionBar() {
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="chooser">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
-  if (!who && !host && v.me.spectator && !btn) who = `<button class="who" data-do="toggleSpectate"><span class="who-text">観戦中</span><span class="who-edit">参戦する</span></button>`;
+  if (!who && v.me.spectator && !btn) who = `<button class="who" data-do="toggleSpectate"><span class="who-text">観戦中</span><span class="who-edit">参戦する</span></button>`;
   return btn || who ? `<div class="action"><div>${who}${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
 }
 
@@ -779,7 +812,7 @@ function sheetHtml() {
   if (!ui.sheet) return '';
   const v = view, k = ui.sheet.kind, host = v.me.isHost;
   const others = v.players.filter((p) => p.id !== v.me.id);
-  const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${esc(p.name)}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
+  const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${esc(p.name)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
   let inner = '';
   if (k === 'menu') {
     const item = (cls, attrs, label, side = '') => `<button class="item ${cls}" ${attrs}><span>${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
@@ -796,7 +829,7 @@ function sheetHtml() {
         ${item('', 'data-do="sheet" data-kind="remove"', '参加者を外す')}
         ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`) : ''}
       </div>` : ''}
-      ${host ? '' : `<div class="group">${item('', 'data-do="toggleSpectate"', (v.me.nextSpectator ?? v.me.spectator) ? '参戦に切り替える' : '観戦に切り替える', v.me.nextSpectator !== null && v.me.nextSpectator !== undefined ? '次のラウンドから' : '')}</div>`}
+      ${`<div class="group">${item('', 'data-do="toggleSpectate"', (v.me.nextSpectator ?? v.me.spectator) ? '参戦に切り替える' : '観戦に切り替える', v.me.nextSpectator !== null && v.me.nextSpectator !== undefined ? '次のラウンドから' : '')}</div>`}
       <div class="group">
         ${item('danger', 'data-do="leave"', '退出する')}
         ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる') : ''}
@@ -830,7 +863,7 @@ function sheetHtml() {
       <button class="btn primary block" data-do="doRename">変更する</button></div>`;
   } else if (k === 'settings') {
     const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
-    const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${s[key] === val ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
+    const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${String(s[key]) === String(val) ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
     const ids = s.order.filter((id) => v.players.some((p) => p.id === id && !p.spectator));
     const order = s.presenterMode === 'rotation' ? `<h2>順番（上から）</h2><ul class="order">${ids.map((id, i) => `<li>${esc(v.players.find((p) => p.id === id).name)}<span>
       <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="-1" ${i === 0 || locked ? 'disabled' : ''} aria-label="上へ">↑</button>
@@ -840,6 +873,7 @@ function sheetHtml() {
       <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
       <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
       <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
+      <h2>回答の制限時間</h2>${seg('timeLimit', [[0, 'なし'], [30, '30秒'], [60, '60秒'], [90, '90秒'], [120, '120秒']])}
       ${order}</div>`;
   } else if (k === 'transfer') {
     inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
@@ -848,11 +882,11 @@ function sheetHtml() {
   } else if (k === 'allow') {
     inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
   } else if (k === 'chooser') {
-    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && !p.spectator && p.id !== v.chooserId))}</div>`;
+    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
   } else if (k === 'presenter') {
     inner = `<h3>出題者を指名する</h3><div class="menu">
       <button class="btn" data-do="randomPresenter">ランダムで指名する</button>
-      ${pick('presenter', v.players.filter((p) => p.connected && !p.spectator && p.id !== v.presenterId))}</div>`;
+      ${pick('presenter', v.players.filter((p) => p.connected && p.id !== v.presenterId))}</div>`;
   }
   return `<div class="scrim" data-do="scrim"><div class="sheet"><button class="x" data-do="closeSheet" aria-label="閉じる">×</button>${inner}</div></div>`;
 }

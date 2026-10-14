@@ -51,9 +51,10 @@ export function requirePresenter(room, id) {
 }
 
 // 担当者（出題者・選ぶ人）が、いま務められる状態か（参加していて、接続中）
+// 出題者・選ぶ人は、観戦中の人でも務められる（接続中であればよい）
 export const holderAvailable = (room, holderId) => {
   const p = room.players.get(holderId);
-  return isGamePlayer(p) && p.connected;
+  return isActive(p) && p.connected;
 };
 
 // 担当の指名・委譲ができるのは、いまの担当者だけ。担当者が不在のときは、主催者に権限が戻る。

@@ -17,7 +17,7 @@ import { createStoreFromEnv } from './store.js';
 const PORT = Number(process.env.PORT ?? 3000);
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
-const TICK_MS = 5000;
+const TICK_MS = 1000;
 const PING_MS = 25000;
 
 const MIME = {
@@ -126,6 +126,8 @@ function describe(room, ev) {
       return ev.spectator ? `${name(ev.id)}さんが観戦になりました` : `${name(ev.id)}さんが参戦になりました`;
     case 'spectator_pending':
       return null; // 本人にだけ、画面で次のラウンドからと分かる
+    case 'time_up':
+      return ev.noAnswer ? '時間切れ。回答がなかったので、全員不正解です' : ev.bomb ? '時間切れ。爆弾が爆発しました' : '時間切れ。開示へ進みます';
     case 'room_reset':
       return '主催者が部屋をリセットしました（記録と問題数を消しました）';
     case 'chooser_returned_to_host':
