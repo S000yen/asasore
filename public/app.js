@@ -598,17 +598,16 @@ function spriteOf(p) {
   return s;
 }
 const spriteTf = (s) => `translate(${s.x}px,${s.y}px) scale(${1 + 0.18 * s.sq},${1 - 0.28 * s.sq})`;
-// 名前がとても長い人は、跳ねも横移動もせず、横幅いっぱいで下に並べる
+// 名前がとても長い人は、跳ねも横移動もせず、横幅いっぱいで、いちばん下に置く
 const LONG_NAME = 20;
 const isLongName = (name) => [...String(name)].length > LONG_NAME;
 function rosterHtml() {
   const players = view.players;
   for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
-  let row = 0;
   const items = players.map((p) => {
     const s = spriteOf(p);
     const long = isLongName(p.name);
-    const tf = long ? `translate(12px,${300 - 38 - 6 - (row++) * 44}px)` : spriteTf(s);
+    const tf = long ? `translate(12px,${300 - 38 - 6}px)` : spriteTf(s);
     return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.spectator ? ' spec' : ''}${long ? ' long' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${tf}">${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}${escN(p.name, long ? 17 : 14)}</div>`;
   }).join('');
   const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
@@ -648,21 +647,17 @@ function rosterLoop(t) {
     const el = f.querySelector(`.bullet[data-b="${b.id}"]`);
     if (gone) { el?.remove(); bullets.splice(i, 1); } else if (el) el.style.transform = bulletTf(b);
   }
-  const longRows = [...f.querySelectorAll('.sprite.long')];
-  const rowH = (longRows[0]?.offsetHeight ?? 38) + 6;
-  const reserve = Math.min(H * 0.6, longRows.length * rowH); // 長い名前の段の分だけ、跳ねる床を上げる
   for (const el of f.querySelectorAll('.sprite')) {
     const s = sprites.get(el.dataset.pid);
     if (!s) continue;
     s.w = el.offsetWidth; s.h = el.offsetHeight;
-    if (el.classList.contains('long')) { // 動かさず、下から順に積む
-      const i = longRows.indexOf(el);
-      s.x = 12; s.y = H - s.h - 6 - i * rowH; s.vx = 0; s.vy = 0; s.sq = 0;
+    if (el.classList.contains('long')) { // 動かさず、いちばん下に置く（複数いても重なってよい）
+      s.x = 12; s.y = H - s.h - 6; s.vx = 0; s.vy = 0; s.sq = 0;
       el.style.transform = `translate(12px,${s.y}px)`;
       continue;
     }
     const m = s.w * 0.09; // 着地でぐにゃっと広がる分の余白
-    const floorY = Math.max(0, H - s.h - reserve), minX = m, maxX = Math.max(minX, W - s.w - m);
+    const floorY = Math.max(0, H - s.h), minX = m, maxX = Math.max(minX, W - s.w - m);
     const apex = Math.max(20, (floorY - 6) * bounceRatio(el.dataset.name)); // 跳ねる高さ（枠の高さを超えない）
     const launch = Math.sqrt(2 * GRAVITY * apex);
     s.vy += GRAVITY * dt;
