@@ -1,44 +1,24 @@
-'use strict';
+// 画面の入口：通信、操作、描画の組み立て。
+// HTML を作る部分は ui/、状態は core/、端末への保存は net/、動きは effects/ に分けてある。
 
-// ---------- 状態 ----------
+import { isEditing } from '../core/selectors.js';
+import { drafts, newRoom, state, ui } from '../core/state.js';
+import { startBounceLoop } from '../effects/bounce.js';
+import { startRosterLoop } from '../effects/roster.js';
+import { startTimerTicker } from '../effects/timerTicker.js';
+import { mdToHtml } from '../lib/markdown.js';
+import { MARKS } from '../lib/marks.js';
+import { clientId, loadName, loadSession, saveName, saveSession } from '../net/storage.js';
+import { sliderVal, tsLabel } from '../ui/components/timeSlider.js';
+import { entryHtml } from '../ui/pages/entry.js';
+import { roomHtml } from '../ui/pages/room.js';
 
-const STORE = 'asaso.session';
-const CLIENT_STORE = 'asaso.client'; // この端末の匿名ID。「おかしい」の報告を、端末ごとに1回と数えるために使う
-const NAME_STORE = 'asaso.name'; // 自分で付けた表示名（次の部屋でも使う）。未設定なら、部屋ごとに「ユーザーN」になる
 const $app = document.getElementById('app');
-
-const loadSession = () => {
-  try { return JSON.parse(localStorage.getItem(STORE)); } catch { return null; }
-};
-const saveSession = (s) => {
-  try { s ? localStorage.setItem(STORE, JSON.stringify(s)) : localStorage.removeItem(STORE); } catch { /* 保存できなくても動く */ }
-};
-const loadName = () => {
-  try { return localStorage.getItem(NAME_STORE) ?? ''; } catch { return ''; }
-};
-const saveName = (n) => {
-  try { localStorage.setItem(NAME_STORE, n); } catch { /* 保存できなくても動く */ }
-};
-
-const clientId = (() => {
-  try {
-    let id = localStorage.getItem(CLIENT_STORE);
-    if (!id) {
-      id = (crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`);
-      localStorage.setItem(CLIENT_STORE, id);
-    }
-    return id;
-  } catch { return null; } // 保存できない端末では、IDなし（サーバー側で参加者ごとに数える）
-})();
+state.session = loadSession();
+state.prefName = loadName();
 
 let ws = null;
-let viewAt = 0;             // 状態を受け取った時刻（経過時間の表示用）
-let view = null;            // サーバーから届いた自分用の状態
-let session = loadSession(); // { code, playerId }（端末に残す。再接続で同じ参加者として戻るため）
-let prefName = loadName();   // 自分で決めた表示名。空ならサーバーが「ユーザーN」を付ける
-let autoJoin = true;
 let backoff = 500;
-let endMessage = null;       // 入室画面の代わりに出す案内（外された、部屋が閉じた、など）
 let lastJoinCode = null;     // 最後に入ろうとした部屋（見つからなかったとき、どの記録を消すか決めるため）
 
 // 招待リンク（/?code=XXXX）から開いたら、コードも名前も入れずに、そのまま入る
@@ -46,21 +26,9 @@ let pendingLink = (() => {
   const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
   return /^[A-Z0-9]{4}$/.test(c) ? c : null;
 })();
-const newRoom = { presenterMode: 'host', identityMode: 'named', chooserMode: 'all', timeLimit: 0 }; // 部屋をつくるときの設定（作成の前に選ぶ）
-const ui = { joinWatch: false, editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null };
-const drafts = { code: '', rename: '', answer: '', hiragana: '', theme: '' };
+
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 let composing = false, pendingRender = false, toastTimer = null;
-
-// 長い名前は、真ん中を「…」にして、最後の少し（同名のときの番号など）を残す
-const short = (name, max = 12) => {
-  const cs = [...String(name ?? '')];
-  if (cs.length <= max) return cs.join('');
-  const tail = 3;
-  return `${cs.slice(0, max - tail - 1).join('')}…${cs.slice(-tail).join('')}`;
-};
-const escN = (name, max) => esc(short(name, max));
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- 通信 ----------
 
@@ -73,7 +41,7 @@ function connect() {
     ui.connected = true;
     if (resend) { const m = resend; resend = null; sock.send(JSON.stringify(m)); }
     else if (pendingLink) joinFromLink();
-    else if (session && autoJoin) sendJoin(session.code);
+    else if (state.session && state.autoJoin) sendJoin(state.session.code);
     render();
   };
   sock.onmessage = (e) => {
@@ -123,14 +91,14 @@ const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
 function sendJoin(code, spectator = false) {
   lastJoinCode = code;
-  return sendCritical({ t: 'join', code, name: prefName, clientId, spectator, playerId: session?.code === code ? session.playerId : null });
+  return sendCritical({ t: 'join', code, name: state.prefName, clientId, spectator, playerId: state.session?.code === code ? state.session.playerId : null });
 }
 
 function joinFromLink() {
   const code = pendingLink;
   pendingLink = null;
   try { history.replaceState(null, '', location.pathname); } catch { /* 書き換えられなくても動く */ }
-  autoJoin = true;
+  state.autoJoin = true;
   ui.joining = true;
   sendJoin(code);
 }
@@ -139,7 +107,7 @@ function joinFromLink() {
 function wake() {
   if (document.hidden) return;
   if (!ws || ws.readyState > 1) { connect(); return; }
-  if (view && session) sendJoin(session.code);
+  if (state.view && state.session) sendJoin(state.session.code);
 }
 document.addEventListener('visibilitychange', wake);
 window.addEventListener('online', wake);
@@ -154,18 +122,18 @@ function onMessage(m) {
     }
     case 'joined':
       settleCritical();
-      session = { code: m.code, playerId: m.playerId };
-      saveSession(session);
-      endMessage = null;
+      state.session = { code: m.code, playerId: m.playerId };
+      saveSession(state.session);
+      state.endMessage = null;
       ui.joinOpen = false;
       return;
     case 'state':
-      view = m.view;
-      viewAt = performance.now();
+      state.view = m.view;
+      state.viewAt = performance.now();
       ui.joining = false;
-      if (ui.pendingRename !== null && view.me.name === ui.pendingRename) { // 表示名の変更が通った
-        prefName = ui.pendingRename;
-        saveName(prefName);
+      if (ui.pendingRename !== null && state.view.me.name === ui.pendingRename) { // 表示名の変更が通った
+        state.prefName = ui.pendingRename;
+        saveName(state.prefName);
         ui.pendingRename = null;
         if (ui.sheet?.kind === 'rename') ui.sheet = null;
         toast('表示名を変えました');
@@ -183,12 +151,12 @@ function onMessage(m) {
       ui.joining = false;
       ui.pendingRename = null;
       if (m.code === 'no_room') { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
-        if (!session || session.code === lastJoinCode) { session = null; saveSession(null); }
-        view = null;
+        if (!state.session || state.session.code === lastJoinCode) { state.session = null; saveSession(null); }
+        state.view = null;
       }
       if (m.code === 'banned') {
-        view = null; autoJoin = false;
-        endMessage = { title: 'この部屋には入れません', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
+        state.view = null; state.autoJoin = false;
+        state.endMessage = { title: 'この部屋には入れません', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
       }
       toast(m.message);
       break;
@@ -196,15 +164,15 @@ function onMessage(m) {
       ui.modal = confirmFor(m);
       break;
     case 'removed':
-      view = null; autoJoin = false; ui.sheet = null; ui.modal = null;
-      endMessage = { title: '部屋から外されました', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
+      state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
+      state.endMessage = { title: '部屋から外されました', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
       break;
     case 'closed':
-      view = null; session = null; saveSession(null); ui.sheet = null; ui.modal = null;
-      endMessage = { title: '部屋が閉じられました', body: '' };
+      state.view = null; state.session = null; saveSession(null); ui.sheet = null; ui.modal = null;
+      state.endMessage = { title: '部屋が閉じられました', body: '' };
       break;
     case 'left':
-      view = null; autoJoin = false; ui.sheet = null; ui.modal = null;
+      state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
       break;
   }
   render();
@@ -212,7 +180,7 @@ function onMessage(m) {
 
 // 入力中の内容（下書き）は、状態が届いても消さない。新しいラウンドと、お題が変わったときだけ入れ替える。
 function syncDrafts() {
-  const v = view;
+  const v = state.view;
   if (v.round !== lastRound) { lastRound = v.round; drafts.answer = ''; }
   if (v.phase === 'answer' && v.myAnswer !== null && drafts.answer === '') drafts.answer = v.myAnswer;
   if (v.phase === 'topic' && v.me.isPresenter) {
@@ -242,32 +210,29 @@ function confirmFor(m) {
   let body;
   if (m.phase === 'answer') body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
   else if (m.phase === 'reveal') body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
-  else if (view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
+  else if (state.view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
   else body = `まだ${p.count}人が未投票です（${p.names.join('、')}）。このまま結果を出しますか？`;
   return { body, ok: '進める', onOk: () => act('advance', { force: true }) };
 }
 
+let lastPhaseKey = '';
 // ---------- 描画 ----------
 
-// 主催者の「まとめを編集」中か。編集中は、完了するまで他の操作ができない。
-const canEditGroups = () => Boolean(view?.me.isHost && ['reveal', 'vote'].includes(view.phase) && view.pool.filter((c) => c.revealed).length >= 2);
-const isEditing = () => ui.editing && canEditGroups();
-let lastPhaseKey = '';
 function trackPhase() {
-  const phase = view?.phase ?? '';
+  const phase = state.view?.phase ?? '';
   document.body.dataset.phase = phase;
-  const key = view ? `${view.code}:${view.round}:${phase}` : '';
+  const key = state.view ? `${state.view.code}:${state.view.round}:${phase}` : '';
   if (key !== lastPhaseKey) {
     ui.sel.clear(); // 段階が変わったら、編集と選択は解く
     ui.editing = false;
-    if (view?.bombed && (phase === 'reveal' || phase === 'result') && lastPhaseKey.endsWith(':answer')) bomb();
+    if (state.view?.bombed && (phase === 'reveal' || phase === 'result') && lastPhaseKey.endsWith(':answer')) bomb();
     if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
-    if (phase === 'result' && lastPhaseKey.endsWith(':vote') && view.result?.winners.length) confetti();
+    if (phase === 'result' && lastPhaseKey.endsWith(':vote') && state.view.result?.winners.length) confetti();
     lastPhaseKey = key;
   }
   if (!isEditing()) { ui.editing = false; ui.sel.clear(); }
-  if (view && ui.sel.size) { // 消えた・まだ開示されていない回答は、選択から外す
-    const ok = new Set(view.pool.filter((c) => c.revealed).map((c) => c.answerId));
+  if (state.view && ui.sel.size) { // 消えた・まだ開示されていない回答は、選択から外す
+    const ok = new Set(state.view.pool.filter((c) => c.revealed).map((c) => c.answerId));
     for (const id of [...ui.sel]) if (!ok.has(id)) ui.sel.delete(id);
   }
 }
@@ -324,7 +289,6 @@ function confetti() {
 }
 
 // 反応マーク：画面の下から、ふわっと浮かび上がる。#app の外に出す（描画のたびに消えないように）。
-const MARKS = { like: '👍', bad: '👎', cheer: '📣', laugh: '😂' };
 function floatMark(kind) {
   const mark = MARKS[kind];
   if (!mark) return;
@@ -341,10 +305,6 @@ function floatMark(kind) {
   el.addEventListener('animationend', () => el.remove());
   box.append(el);
 }
-function reactBarHtml() {
-  const lock = isEditing();
-  return `<div class="reactbar">${Object.entries(MARKS).map(([k, m]) => `<button class="react" ${lock ? 'disabled' : `data-do="react" data-kind="${k}"`} aria-label="${{ like: 'いいね', bad: 'バッド', cheer: '応援', laugh: '笑い' }[k]}">${m}</button>`).join('')}</div>`;
-}
 
 // 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
 function startBand() {
@@ -352,7 +312,7 @@ function startBand() {
   const el = document.createElement('div');
   el.className = 'startband';
   el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = `<span>${view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
+  el.innerHTML = `<span>${state.view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
   document.body.append(el);
   setTimeout(() => el.remove(), 1700);
 }
@@ -373,7 +333,8 @@ function bomb() {
 function render() {
   if (composing) { pendingRender = true; return; } // 日本語入力の変換中は作り直さない
   trackPhase();
-  morphInto($app, view ? roomHtml() : entryHtml());
+  if (state.view && ui.sheet?.kind === 'howto') loadHowto(); // 遊び方は、初めて開くときに読み込む
+  morphInto($app, state.view ? roomHtml() : entryHtml());
   fitTheme();
 }
 
@@ -410,622 +371,21 @@ function fitTheme() {
   el.style.height = `${el.scrollHeight + 4}px`;
 }
 
-const chips = (list, mark) => `<div class="chips">${list.map((p) =>
-  `<span class="chip ${p.connected ? '' : 'away'}${p.id === view?.me.id ? ' me' : ''}">${p.isHost ? badgeHost : ''}${escN(p.name, 12)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
+// 遊び方（public/howto.md）：初めて開くときに読み込んで、控えておく。
+let howtoLoading = false;
 
-const ICON_REDRAW = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>';
-const ICON_TRASH = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
-const SVG_ATTR = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
-const ICON_PENCIL = `<svg ${SVG_ATTR} width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
-// メニューの項目に付ける線画アイコン（24x24）
-const MENU_ICONS = {
-  share: '<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/>',
-  name: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-  players: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
-  howto: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>',
-  reclaim: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
-  settings: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
-  reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
-  transfer: '<path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/>',
-  allow: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',
-  leave: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
-  close: '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/>',
-};
-const menuIcon = (k) => `<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MENU_ICONS[k]}</svg>`;
-const ICON_CROWN = `<svg ${SVG_ATTR}><path d="M2 20h20"/><path d="m4 8 4 4 4-7 4 7 4-4-2 9H6Z"/></svg>`; // 主催者の印
-const ICON_GHOST = `<svg ${SVG_ATTR}><path d="M5 21V11a7 7 0 0 1 14 0v10l-2.5-2-2.3 2-2.2-2-2.2 2-2.3-2z"/><path d="M9.5 11v.01M14.5 11v.01"/></svg>`;
-const badgeHost = '<span class="badge" role="img" aria-label="主催者">' + ICON_CROWN + '</span>';
-const badgeSpec = '<span class="badge spec" role="img" aria-label="観戦中">' + ICON_GHOST + '</span>';
-const ICON_HAMMER = `<svg ${SVG_ATTR}><path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/></svg>`;
-const ICON_DOOR = `<svg ${SVG_ATTR}><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>`;
-const ICON_SEND = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/></svg>';
-// 回答の長さで文字の大きさを変える（短い答えは大きく、長い答えは小さく）
-const sizeOf = (text) => { const n = [...String(text)].length; return n <= 8 ? 'lg' : n <= 22 ? 'md' : 'sm'; };
-
-// 参加者の進み具合（回答済み・投票済み）。枠は付けず、見出しの横に数だけ出す
-const progress = (label, list, done, side = '') => `<div class="progress"><h2><span>${label} ${list.filter(done).length}/${list.length}</span>${side}</h2>${chips(list, done)}</div>`;
-// 回答待ちの時間：サーバーから届いた秒に、受け取ってからの時間を足して進める。制限時間があれば、残りを数える。
-const clock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-const elapsedNow = () => (view?.answerSec ?? 0) + Math.floor((performance.now() - viewAt) / 1000);
-const timerInfo = () => {
-  const limit = view?.settings.timeLimit ?? 0;
-  if (!limit) return { text: clock(elapsedNow()), low: false, limit: 0 };
-  const left = Math.max(0, limit - elapsedNow());
-  return { text: clock(left), low: left <= 10, limit };
-};
-const timerHtml = () => {
-  const t = timerInfo();
-  return `<span class="timer${t.limit ? ' limited' : ''}${t.low ? ' low' : ''}" id="timer"><i class="ticon" aria-hidden="true">${t.limit ? (t.low ? '💣' : '⏳') : '⏱'}</i><b id="timerText">${t.text}</b></span>`;
-};
-setInterval(() => {
-  const el = document.getElementById('timer');
-  if (!el || view?.phase !== 'answer') return;
-  const t = timerInfo();
-  const tx = document.getElementById('timerText');
-  if (tx && tx.textContent !== t.text) tx.textContent = t.text;
-  el.classList.toggle('low', t.low);
-  const ic = el.querySelector('.ticon');
-  if (ic && t.limit) ic.textContent = t.low ? '💣' : '⏳';
-}, 250);
-
-const telop = (t) => t
-  ? `<div class="telop"><div class="tile" id="tpTile">${esc(t.hiragana || '？')}</div><div class="telop-text"><span class="tiny">で始まる</span><strong id="tpTheme">${esc(t.theme)}</strong><span class="tiny">といえば？</span></div></div>`
-  : '';
-
-// 回答の制限時間：5〜180秒のバー。いちばん右が「なし」。目盛りをタップすると、その時間になる。
-const TS_MIN = 5, TS_MAX = 180, TS_NONE = TS_MAX + 25; // 右端の「なし」は、180秒の目盛りと重ならないよう、少し離しておく
-const TS_TICKS = [5, 30, 60, 90, 120, 150, 180, 0];
-const tsPos = (v) => (Number(v) === 0 ? TS_NONE : Number(v));
-const tsLabel = (v) => (Number(v) === 0 ? 'なし' : `${v}秒`);
-function timeSliderHtml(value, ctx, disabled = false) {
-  const frac = (pos) => (pos - TS_MIN) / (TS_NONE - TS_MIN);
-  const ticks = TS_TICKS.map((v) => `<button type="button" class="tick${Number(value) === v ? ' on' : ''}" style="--f:${frac(tsPos(v))}" data-do="setTime" data-ctx="${ctx}" data-val="${v}" ${disabled ? 'disabled' : ''}>${v === 0 ? 'なし' : v}</button>`).join('');
-  return `<div class="tslider" data-ctx="${ctx}">
-    <div class="thead"><h2>回答の制限時間</h2><span class="tval">${tsLabel(value)}</span></div>
-    <input type="range" class="trange" min="${TS_MIN}" max="${TS_NONE}" step="5" value="${tsPos(value)}" data-slider="${ctx}" style="--f:${frac(tsPos(value))}" aria-label="回答の制限時間" ${disabled ? 'disabled' : ''}>
-    <div class="ticks">${ticks}</div>
-  </div>`;
-}
-
-function entryHtml() {
-  if (endMessage) return endHtml();
-  const resume = session ? `<button class="link center" data-do="resume">前の部屋（${esc(session.code)}）に戻る</button>` : '';
-  const body = ui.joining
-    ? '<p class="hint center-text">部屋に入っています…</p>'
-    : `<div class="entry-btns">
-        <button class="bigbtn primary" data-do="openCreate">${ICON_HAMMER}<span>部屋をつくる</span></button>
-        <button class="bigbtn" data-do="openJoin">${ICON_DOOR}<span>部屋に入る</span></button>
-      </div>
-      ${resume}`;
-  const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${newRoom[key] === val ? 'on' : ''}" data-do="newSet" data-key="${key}" data-val="${val}">${label}</button>`).join('')}</div>`;
-  const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeCreate" aria-label="閉じる">×</button>
-      <h3>部屋をつくる</h3>
-      <div class="stack">
-        <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
-        <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
-        <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
-        ${timeSliderHtml(newRoom.timeLimit, 'create')}
-      </div>
-      <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
-    </div></div>` : '';
-  const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
-      <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
-      <div class="seg join-seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${ui.joinWatch === val ? 'on' : ''}" data-do="setJoinWatch" data-val="${val}">${label}</button>`).join('')}</div>
-      <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
-    </div></div>` : '';
-  return `<div class="entry">
-    <div class="entry-top">
-      <div class="telop hero"><div class="tile">あ</div><h1 class="hero-title">朝からそれ正解</h1></div>
-    </div>
-    ${body}
-    ${ui.connected ? '' : '<p class="hint center-text">サーバーにつなぎ直しています。</p>'}
-    <p class="foot-hint">※ シークレットモードなどでの使用は推奨しません</p>
-    ${dialog}${createDialog}${toastHtml()}
-  </div>`;
-}
-
-function endHtml() {
-  const e = endMessage;
-  return `<div class="end">
-    <h1 class="title" style="font-size:28px">${esc(e.title)}</h1>
-    ${e.body ? `<p class="hint">${esc(e.body)}</p>` : ''}
-    ${e.retry && session ? '<button class="btn primary center" data-do="resume">もう一度入る</button>' : ''}
-    <button class="btn center" data-do="backToEntry">入室画面に戻る</button>
-    ${toastHtml()}
-  </div>`;
-}
-
-function roomHtml() {
-  const v = view;
-  return `
-    <header class="bar${isEditing() ? ' locked' : ''}">
-      <button class="room" data-do="copyCode" aria-label="部屋番号${esc(v.code)}をコピー"><b class="code">${esc(v.code)}</b></button>
-      <div class="round">${v.round ? `第${v.round}問` : ''}</div>
-      <div class="bar-right">
-        ${'<button class="icon" data-do="sheet" data-kind="history" aria-label="記録"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="4" height="14" rx="1"/><rect x="9" y="4" width="4" height="14" rx="1"/><path d="M15.2 5.6l3.6-.9 2.7 12.7-3.6.9z"/><path d="M2 21h20"/></svg></button>'}
-        <button class="icon" data-do="openMenu" aria-label="メニュー"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5a8.5 6 0 0 1 17 0z"/><path d="M2.5 14h19"/><path d="M4.5 17.5h15v.5a2.5 2.5 0 0 1-2.5 2.5h-10a2.5 2.5 0 0 1-2.5-2.5z"/></svg></button>
-      </div>
-    </header>
-    ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
-    ${v.phase === 'vote' ? `<div class="phaseband">${v.settings.chooserMode === 'one' ? '選択中' : '投票中'}</div>` : ''}
-    <main class="main">${phaseHtml()}</main>
-    ${actionBar()}
-    ${sheetHtml()}${modalHtml()}${toastHtml()}`;
-}
-
-function phaseHtml() {
-  switch (view.phase) {
-    case 'lobby': return lobbyHtml();
-    case 'topic': return topicHtml();
-    case 'answer': return answerHtml();
-    case 'reveal': return revealHtml();
-    case 'vote': return voteHtml();
-    case 'result': return resultHtml();
-    default: return '';
-  }
-}
-
-function lobbyHtml() {
-  const v = view;
-  return `
-    <div class="listhead"><h2>参加者 ${v.players.length}人</h2><div class="lh-actions"><button class="btn small edit-toggle namebtn" data-do="openRename" aria-label="表示名を変える">${ICON_PENCIL}<span class="nm">${escN(v.me.name, 10)}</span></button></div></div>
-    ${rosterHtml()}
-    <button class="btn small center" data-do="share">招待リンクを共有する</button>
-`;
-}
-
-// ロビーの参加者：床がトランポリンのように、それぞれが跳ね続ける。
-// 互いにはぶつからない。左右の壁では普通に跳ね返る。天井はないが、跳ねる高さの上限は枠の中に収まる。
-// 跳ね具合は名前の長さしだい（文字が少ないほど高く跳ねる）。
-const GRAVITY = 1500; // px/s²
-const sprites = new Map(); // playerId -> {x,y,vx,vy,w,h,sq}
-const bullets = []; // 横から時々飛んでくる弾 {id,x,y,dir,ox}
-let bulletId = 0, nextShot = 1.5, lastTapAt = -1e9;
-const bulletTf = (b) => `translate(${b.x}px,${b.y}px) rotate(${b.dir > 0 ? 90 : -90}deg)`; // 「A」のてっぺんが、飛んでいく向き
-// 弾を1発打つ（発射数の制限はなし）
-function fireBullet(f, dir, y) {
-  const W = f.clientWidth;
-  const b = { id: ++bulletId, dir, x: dir > 0 ? 0 : W, y, ox: dir > 0 ? 0 : W, hit: false };
-  bullets.push(b);
-  f.insertAdjacentHTML('beforeend', `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`);
-}
-// タップすると、近い方の壁から、同じ高さに弾が飛ぶ（ひとり何発でも）
-document.addEventListener('pointerdown', (e) => {
-  const f = e.target.closest?.('#rosterField');
-  if (!f) return;
-  const r = f.getBoundingClientRect();
-  const x = e.clientX - r.left, y = e.clientY - r.top;
-  lastTapAt = performance.now();
-  fireBullet(f, x < r.width / 2 ? 1 : -1, y);
-});
-const BULLET_SPEED = 520; // px/s
-// 弾が当たったときの横速度：発射地点に近いほど猛烈に速く、遠いほどゆっくり（向きは弾の進行方向）
-const hitSpeed = (dist01) => 15 + 985 * Math.pow(1 - dist01, 2.2);
-const bounceRatio = (name) => 1 - (Math.min(20, Math.max(1, [...name].length)) - 1) / 19 * 0.65; // 1文字=100%、20文字=35%
-function spriteOf(p) {
-  let s = sprites.get(p.id);
-  if (!s) {
-    const sgn = Math.random() < 0.5 ? -1 : 1;
-    s = { x: 16 + Math.random() * 200, y: 200 - Math.random() * 120, vx: sgn * (28 + Math.random() * 40), vy: 0, w: 0, h: 0, sq: 0 };
-    sprites.set(p.id, s);
-  }
-  return s;
-}
-const spriteTf = (s) => `translate(${s.x}px,${s.y}px) scale(${1 + 0.18 * s.sq},${1 - 0.28 * s.sq})`;
-// 名前がとても長い人は、跳ねも横移動もせず、横幅いっぱいで、いちばん下に置く
-const LONG_NAME = 20;
-const isLongName = (name) => [...String(name)].length > LONG_NAME;
-function rosterHtml() {
-  const players = view.players;
-  for (const id of [...sprites.keys()]) if (!players.some((p) => p.id === id)) sprites.delete(id);
-  const items = players.map((p) => {
-    const s = spriteOf(p);
-    const long = isLongName(p.name);
-    const tf = long ? `translate(12px,${300 - 38 - 6}px)` : spriteTf(s);
-    return `<div class="sprite c${p.id === view.me.id ? 1 : 0}${p.connected ? '' : ' away'}${p.spectator ? ' spec' : ''}${long ? ' long' : ''}" data-pid="${esc(p.id)}" data-name="${esc(p.name)}" style="transform:${tf}">${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}${escN(p.name, long ? 17 : 14)}</div>`;
-  }).join('');
-  const shots = bullets.map((b) => `<i class="bullet" data-b="${b.id}" style="transform:${bulletTf(b)}">A</i>`).join('');
-  return `<div class="bfield roster" id="rosterField">${items}${shots}</div>`;
-}
-let rosterAt = 0;
-function rosterLoop(t) {
-  requestAnimationFrame(rosterLoop);
-  const dt = Math.min(0.05, (t - (rosterAt || t)) / 1000);
-  rosterAt = t;
-  const f = document.getElementById('rosterField');
-  if (!f || reduceMotion) return;
-  const W = f.clientWidth, H = f.clientHeight;
-  // 弾：ときどき（少なめに）、左右どちらかの端から横に飛んでくる
-  // 自動の弾：だれかがタップして10秒たつまでは、お休み（10秒なにもなければ、また飛ぶ）
-  if (performance.now() - lastTapAt > 10000) nextShot -= dt;
-  if (nextShot <= 0) {
-    nextShot = 2.5 + Math.random() * 3.5; // 30秒に7発ほど
-    fireBullet(f, Math.random() < 0.5 ? 1 : -1, 10 + Math.random() * Math.max(1, H - 20));
-  }
-  for (const b of bullets) {
-    b.x += b.dir * BULLET_SPEED * dt;
-    for (const el of f.querySelectorAll('.sprite')) {
-      const s = sprites.get(el.dataset.pid);
-      if (!s || b.hit) continue;
-      if (b.x >= s.x && b.x <= s.x + s.w && b.y >= s.y && b.y <= s.y + s.h) {
-        const d = Math.min(1, Math.abs(b.x - b.ox) / Math.max(1, W));
-        s.vx = b.dir * hitSpeed(d); // 向きも速さも、弾しだい
-        s.sq = Math.max(s.sq, 0.7);
-        b.hit = true;
-      }
-    }
-  }
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    const gone = b.hit || b.x < -10 || b.x > W + 10;
-    const el = f.querySelector(`.bullet[data-b="${b.id}"]`);
-    if (gone) { el?.remove(); bullets.splice(i, 1); } else if (el) el.style.transform = bulletTf(b);
-  }
-  for (const el of f.querySelectorAll('.sprite')) {
-    const s = sprites.get(el.dataset.pid);
-    if (!s) continue;
-    s.w = el.offsetWidth; s.h = el.offsetHeight;
-    if (el.classList.contains('long')) { // 動かさず、いちばん下に置く（複数いても重なってよい）
-      s.x = 12; s.y = H - s.h - 6; s.vx = 0; s.vy = 0; s.sq = 0;
-      el.style.transform = `translate(12px,${s.y}px)`;
-      continue;
-    }
-    const m = s.w * 0.09; // 着地でぐにゃっと広がる分の余白
-    const floorY = Math.max(0, H - s.h), minX = m, maxX = Math.max(minX, W - s.w - m);
-    const apex = Math.max(20, (floorY - 6) * bounceRatio(el.dataset.name)); // 跳ねる高さ（枠の高さを超えない）
-    const launch = Math.sqrt(2 * GRAVITY * apex);
-    s.vy += GRAVITY * dt;
-    s.y += s.vy * dt;
-    // 横方向：速さは次の弾が当たるまで変わらない（壁で跳ね返っても、そのまま）
-    s.x += s.vx * dt;
-    if (s.x < minX) { s.x = minX; s.vx = Math.abs(s.vx); } else if (s.x > maxX) { s.x = maxX; s.vx = -Math.abs(s.vx); }
-    if (s.y >= floorY) { s.y = floorY; s.vy = -launch; s.sq = 1; } // トランポリン：着地のたびに、同じ高さまで跳ね返す
-    const top = floorY - apex - 1;
-    if (s.y < top) { s.y = top; if (s.vy < 0) s.vy = 0; } // 計算の誤差で上限を超えない
-    s.sq = Math.max(0, s.sq - dt * 7); // 着地の一瞬だけ、ぐにゃっと縮む
-    el.style.transform = spriteTf(s);
-  }
-}
-requestAnimationFrame(rosterLoop);
-
-// お題を待つあいだの、跳ね返り続けるロゴ（DVDプレイヤーの待ち受けのような）。位置は画面を作り直しても引き継ぐ。
-const bounce = { x: 24, y: 18, vx: 72, vy: 54, c: 0 };
-const bounceHtml = () => `<div class="bfield" id="bounceField"><div class="blogo c${bounce.c}" id="bounceLogo" style="transform:translate(${bounce.x}px,${bounce.y}px)"><span class="bt">あ</span><span class="bl"><i></i><i></i></span></div></div>`;
-const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-let bounceAt = 0;
-function bounceLoop(t) {
-  requestAnimationFrame(bounceLoop);
-  const dt = Math.min(0.05, (t - (bounceAt || t)) / 1000);
-  bounceAt = t;
-  const f = document.getElementById('bounceField'), l = document.getElementById('bounceLogo');
-  if (!f || !l || reduceMotion) return;
-  const maxX = Math.max(0, f.clientWidth - l.offsetWidth), maxY = Math.max(0, f.clientHeight - l.offsetHeight);
-  bounce.x += bounce.vx * dt;
-  bounce.y += bounce.vy * dt;
-  let hit = false;
-  if (bounce.x < 0) { bounce.x = 0; bounce.vx = Math.abs(bounce.vx); hit = true; } else if (bounce.x > maxX) { bounce.x = maxX; bounce.vx = -Math.abs(bounce.vx); hit = true; }
-  if (bounce.y < 0) { bounce.y = 0; bounce.vy = Math.abs(bounce.vy); hit = true; } else if (bounce.y > maxY) { bounce.y = maxY; bounce.vy = -Math.abs(bounce.vy); hit = true; }
-  if (hit) { bounce.c = (bounce.c + 1) % 4; l.className = `blogo c${bounce.c}`; } // 壁に当たるたび、色が変わる
-  l.style.transform = `translate(${bounce.x}px,${bounce.y}px)`;
-}
-requestAnimationFrame(bounceLoop);
-
-function topicHtml() {
-  const v = view;
-  if (!v.me.isPresenter) {
-    return bounceHtml();
-  }
-  // テロップそのものが入力欄（頭文字と題材を、直接書き換える）
-  const rbtn = (part, label, cls = '') => `<button class="rbtn ${cls}" data-do="draw" data-part="${part}" aria-label="${label}を引き直す">${ICON_REDRAW}<small>${label}</small></button>`;
-  return `
-    <div class="telop edit">
-      <div class="tile"><input id="hiraInput" class="tile-input" type="text" data-draft="hiragana" maxlength="1" placeholder="？" aria-label="頭文字" autocomplete="off" value="${esc(drafts.hiragana)}"></div>
-      <div class="telop-text"><span class="tiny">で始まる</span><textarea id="themeInput" class="theme-edit" rows="1" data-draft="theme" maxlength="40" placeholder="題材" aria-label="題材">${esc(drafts.theme)}</textarea><span class="tiny">といえば？</span></div>
-    </div>
-    <div class="redraw-row">
-      <div class="redraws">
-        <div class="rgroup">${rbtn('hiragana', '頭文字')}${rbtn('theme', '題材')}</div>
-        ${rbtn('both', '両方')}
-      </div>
-      <button class="rbtn trash" data-do="reportTopic" aria-label="この題材を報告して引き直す">${ICON_TRASH}<small>報告</small></button>
-    </div>
-`;
-}
-
-function answerHtml() {
-  const v = view;
-  const box = v.me.spectator ? '' : `
-    <div class="answerbox">
-      <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
-      <div class="box-actions">${v.myAnswer !== null ? '<button class="btn small" data-do="withdraw">取り下げる</button>' : '<button class="btn primary small" data-do="submitAnswer">回答する</button>'}</div>
-    </div>`;
-  return `
-    ${telop(v.topic)}${box}
-    ${progress('回答状況', v.players.filter((p) => !p.spectator), (p) => p.answered, timerHtml())}`;
-}
-
-// 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
-// 主催者が「同じ回答」としてまとめたものには、同じ記号（A、B…）の札が付く。チェックは、まとめる／ばらす対象の選択。
-const groupMark = (n) => String.fromCharCode(64 + n);
-function poolHtml() {
-  const v = view, anon = v.settings.identityMode === 'anonymous';
-  const editing = isEditing();
-  const myGroup = v.myVote ? v.pool.find((x) => x.answerId === v.myVote)?.group ?? null : null;
-  const cells = v.pool.map((c) => {
-    const me = c.mine ? ' mine' : '';
-    if (!c.revealed) {
-      const cls = `cell dark${me}`;
-      const inner = c.canReveal && !editing
-        ? `<button class="${cls} tap" aria-label="開示" data-do="${anon ? 'revealSelected' : 'revealOwn'}" data-id="${esc(c.answerId)}"></button>`
-        : `<div class="${cls}"></div>`;
-      return `<div class="cw">${inner}</div>`;
-    }
-    const wide = [...c.text].length > 10 ? ' wide' : '';
-    const picked = v.myVote === c.answerId || (myGroup !== null && c.group === myGroup);
-    const body = `<span class="txt"><span class="text ${sizeOf(c.text)}">${esc(c.text)}</span>${c.author ? `<span class="by">${escN(c.author, 12)}</span>` : ''}</span>`;
-    const cls = `cell open${me}${picked ? ' picked' : ''}`;
-    const main = c.canVote && !editing
-      ? `<button class="${cls}" data-do="vote" data-id="${esc(c.answerId)}">${body}</button>`
-      : `<div class="${cls}">${body}</div>`;
-    const on = ui.sel.has(c.answerId);
-    const check = c.canGroup && editing ? `<button class="chk${on ? ' on' : ''}" role="checkbox" aria-checked="${on}" aria-label="まとめる対象に選ぶ" data-do="toggleSel" data-id="${esc(c.answerId)}"></button>` : '';
-    const tag = c.group ? `<span class="gtag" aria-label="同じ回答 ${groupMark(c.group)}">${groupMark(c.group)}</span>` : '';
-    return `<div class="cw${wide}${editing ? ' sel' : ''}">${main}${check}${tag}</div>`;
-  }).join('');
-  return `<section class="pool">${cells}</section>`;
-}
-
-// 主催者だけの、同じ回答をまとめる操作。見出しの右の同じボタンで、編集のオン／オフを切り替える。編集中は、ほかの操作はできない。
-function groupToggleHtml() {
-  if (!canEditGroups()) return '';
-  const on = isEditing();
-  return `<button class="btn small edit-toggle${on ? ' on' : ''}" data-do="${on ? 'editDone' : 'editOn'}">${on ? '編集を完了' : 'まとめを編集'}</button>`;
-}
-
-// 編集中だけ、プールの下に出る「まとめる」「ばらす」
-function groupBarHtml() {
-  const v = view;
-  if (!isEditing()) return '';
-  const picked = v.pool.filter((c) => ui.sel.has(c.answerId));
-  const canGroup = picked.length >= 2;
-  const canUngroup = picked.some((c) => c.group);
-  return `<div class="groupbar"><span class="gcount">${picked.length ? `${picked.length}件を選択中` : ''}</span>
-    <button class="btn small" data-do="groupSel" ${canGroup ? '' : 'disabled'}>まとめる</button>
-    <button class="btn small" data-do="ungroupSel" ${canUngroup ? '' : 'disabled'}>ばらす</button></div>`;
-}
-
-function revealHtml() {
-  const v = view, host = v.me.isHost;
-  const total = v.pool.length;
-  return `
-    ${telop(v.topic)}
-    <div class="listhead"><h2>開示済み ${total - v.unrevealedCount}/${total}</h2><span class="lh-actions">${host && v.unrevealedCount > 0 && !isEditing() ? '<button class="btn small" data-do="revealAll">残りを全員分開示</button>' : ''}${groupToggleHtml()}</span></div>
-    ${poolHtml()}${groupBarHtml()}
-    ${reactBarHtml()}
-`;
-}
-
-function voteHtml() {
-  const v = view, one = v.settings.chooserMode === 'one';
-  return `
-    ${telop(v.topic)}
-    <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2>${groupToggleHtml()}</div>
-    ${poolHtml()}${groupBarHtml()}
-    ${one ? '' : progress('投票状況', v.players.filter((p) => !p.spectator), (p) => p.voted)}`;
-}
-
-function resultHtml() {
-  const v = view, r = v.result;
-  if (!r) return '<p class="hint">結果を集計しています。</p>';
-  const winners = new Set(r.winners);
-  const rows = [...r.tallies].sort((a, b) => b.votes - a.votes).map((t) => {
-    const won = winners.has(t.answerId);
-    const wide = won || [...t.text].length > 10 ? ' wide' : '';
-    return `<div class="cell ${won ? 'win' : 'open'}${wide}">
-      ${t.group ? `<span class="gtag in" aria-label="同じ回答 ${groupMark(t.group)}">${groupMark(t.group)}</span>` : ''}
-      ${won ? '<span class="stamp">正解</span>' : ''}
-      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${escN(t.author, 12)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
-  }).join('');
-  return `
-    ${telop(v.topic)}
-    ${r.tie ? '<p class="hint">同票：どれも正解</p>' : ''}
-    ${r.noAnswer || r.winners.length === 0 ? `<div class="allwrong"><b>全員不正解！</b><span>${r.noAnswer ? '回答がありませんでした' : '投票がありませんでした'}</span></div>` : ''}
-    ${rows ? `<section class="pool">${rows}</section>` : ''}`;
-}
-
-function actionBar() {
-  const v = view, host = v.me.isHost;
-  const lock = isEditing(); // まとめの編集中は、先へ進めない（ボタンを押せなくして、理由を添える）
-  let btn = '', meta = '';
-  switch (v.phase) {
-    case 'lobby':
-      if (host) {
-        const n = v.players.filter((p) => p.connected && !p.spectator).length;
-        btn = `<button class="btn primary block" data-do="advance" ${n < 3 ? 'disabled' : ''}>はじめる</button>`;
-        meta = n < 3 ? '3人以上で始められます' : '';
-      }
-      break;
-    case 'topic':
-      if (v.me.isPresenter) btn = '<button class="btn primary block" data-do="confirmTopic">この題で決定</button>';
-      break;
-    case 'answer':
-      if (host) { btn = '<button class="btn primary block" data-do="advance">開示へ進む</button>' }
-      break;
-    case 'reveal':
-      if (host) {
-        const left = v.unrevealedCount;
-        btn = `<button class="btn primary block" data-do="advance" ${left > 0 || lock ? 'disabled' : ''}>投票へ進む</button>`;
-        if (lock) meta = 'まとめの編集中は進めません';
-      }
-      break;
-    case 'vote':
-      if (v.settings.chooserMode === 'one' ? v.me.isChooser : host) {
-        btn = `<button class="btn primary block" data-do="advance" ${(v.pendingCount > 0 && v.settings.chooserMode === 'one') || lock ? 'disabled' : ''}>結果を見る</button>`;
-        if (lock) meta = 'まとめの編集中は進めません';
-      }
-      break;
-    case 'result':
-      if (host) btn = '<button class="btn primary block" data-do="advance">次のラウンドへ</button>';
-      break;
-  }
-  // 題決めの間は、出題者を丸いチップで出す。出題者本人と主催者は、タップして変更できる。
-  let who = '';
-  if (v.phase === 'topic') {
-    const name = v.players.find((p) => p.id === v.presenterId)?.name ?? '';
-    const can = v.me.canAssignPresenter;
-    const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">出題者 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
-    who = can ? `<button class="who" data-do="sheet" data-kind="presenter">${inner}</button>` : `<div class="who">${inner}</div>`;
-  }
-  if (v.phase === 'vote' && v.settings.chooserMode === 'one') {
-    const name = v.players.find((p) => p.id === v.chooserId)?.name ?? '';
-    const can = v.me.canAssignChooser;
-    const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
-    who = can ? `<button class="who" data-do="sheet" data-kind="chooser">${inner}</button>` : `<div class="who">${inner}</div>`;
-  }
-  if (!who && v.me.spectator && !btn) who = `<button class="who" data-do="toggleSpectate"><span class="who-text">観戦中</span><span class="who-edit">参戦する</span></button>`;
-  return btn || who ? `<div class="action"><div>${who}${meta ? `<p class="meta">${meta}</p>` : ''}${btn}</div></div>` : '';
-}
-
-// ---------- シート（メニューなど）と確認 ----------
-
-// 遊び方（public/howto.md）：初めて開くときに読み込んで、控えておく。見出しと箇条書きと太字だけの、簡単な変換。
-let howtoHtml = null, howtoLoading = false;
-function mdToHtml(md) {
-  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  const out = [];
-  let list = null;
-  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
-  for (const raw of md.split('\n')) {
-    const line = raw.trimEnd();
-    let m;
-    if ((m = line.match(/^(#{1,3})\s+(.*)$/))) { close(); out.push(m[1].length === 1 ? '' : `<h2>${inline(m[2])}</h2>`); }
-    else if ((m = line.match(/^\d+\.\s+(.*)$/))) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push(`<li>${inline(m[1])}</li>`); }
-    else if ((m = line.match(/^-\s+(.*)$/))) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(m[1])}</li>`); }
-    else if (line === '') close();
-    else { close(); out.push(`<p>${inline(line)}</p>`); }
-  }
-  close();
-  return out.join('');
-}
 function loadHowto() {
-  if (howtoHtml !== null || howtoLoading) return;
+  if (state.howtoHtml !== null || howtoLoading) return;
   howtoLoading = true;
-  fetch('/howto.md').then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then((t) => { howtoHtml = mdToHtml(t); })
-    .catch(() => { howtoHtml = '<p class="hint">読み込めませんでした。もう一度開いてください。</p>'; howtoLoading = false; setTimeout(() => { howtoHtml = null; }, 0); })
+  fetch('/howto.md').then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then((t) => { state.howtoHtml = mdToHtml(t); })
+    .catch(() => { state.howtoHtml = '<p class="hint">読み込めませんでした。もう一度開いてください。</p>'; howtoLoading = false; setTimeout(() => { state.howtoHtml = null; }, 0); })
     .finally(() => { howtoLoading = false; if (ui.sheet?.kind === 'howto') render(); });
 }
-
-function sheetHtml() {
-  if (!ui.sheet) return '';
-  const v = view, k = ui.sheet.kind, host = v.me.isHost;
-  const others = v.players.filter((p) => p.id !== v.me.id);
-  const pick = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${escN(p.name, 24)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
-  let inner = '';
-  if (k === 'menu') {
-    const item = (cls, attrs, label, side = '', icon = '') => `<button class="item ${cls}" ${attrs}>${icon ? menuIcon(icon) : ''}<span class="lbl">${label}</span>${side ? `<span class="side">${side}</span>` : ''}</button>`;
-    inner = `<h3>メニュー</h3><div class="menu-list">
-      <div class="group">
-        ${item('', 'data-do="share"', '招待リンクを共有', '', 'share')}
-        ${item('', 'data-do="openRename"', '表示名', escN(v.me.name, 16), 'name')}
-        ${item('', 'data-do="sheet" data-kind="players"', '参加者一覧', `${v.players.length}人`, 'players')}
-        ${item('', 'data-do="sheet" data-kind="howto"', '遊び方', '', 'howto')}
-        <div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div>
-      </div>
-      ${host ? `<div class="group"><p class="group-label">主催者</p>
-        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する', '', 'reclaim') : ''}
-        ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定', '', 'settings')}
-        ${item('', v.history.length ? 'data-do="resetRoom"' : 'disabled', '記録をリセット', '', 'reset')}
-        ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る', '', 'transfer')}
-        ${v.removed.length ? item('', 'data-do="sheet" data-kind="allow"', '再入室を許可', `${v.removed.length}人`, 'allow') : ''}
-      </div>` : ''}
-      <div class="group">
-        ${item('danger', 'data-do="leave"', '退出する', '', 'leave')}
-        ${host ? item('danger', 'data-do="closeRoom"', '部屋を閉じる', '', 'close') : ''}
-      </div>
-    </div>`;
-  } else if (k === 'history') {
-    const tot = new Map();
-    for (const h of v.history) for (const e of h.entries) { const t = tot.get(e.author) ?? { w: 0, v: 0 }; t.w += e.won ? 1 : 0; t.v += e.votes; tot.set(e.author, t); }
-    const rank = [...tot].sort((x, y) => y[1].w - x[1].w || y[1].v - x[1].v);
-    const maxW = Math.max(1, ...rank.map(([, t]) => t.w));
-    const graph = `<div class="graph">${rank.map(([n, t]) => `<div class="g-row${t.w > 0 && t.w === maxW ? ' top' : ''}"><span class="g-name">${escN(n, 10)}</span><span class="g-track"><i style="width:${Math.max(4, (t.w / maxW) * 100)}%"></i></span><span class="g-val">${t.w}<small>正解</small></span></div>`).join('')}</div>`;
-    // 得票率：全員の投票で決めたラウンドについて、その人の回答が受けた票 ÷ 投じられた票の合計
-    const rate = new Map();
-    let rounds = 0;
-    for (const h of v.history) {
-      if (h.mode === 'one' || !h.total) continue;
-      rounds += 1;
-      for (const e of h.entries) { const t = rate.get(e.author) ?? { got: 0, all: 0 }; t.got += e.votes; t.all += h.total; rate.set(e.author, t); }
-    }
-    const rr = [...rate].map(([n, t]) => [n, t.all ? (t.got / t.all) * 100 : 0]).sort((x, y) => y[1] - x[1]);
-    const maxR = Math.max(1, ...rr.map(([, p]) => p));
-    const rateGraph = rounds ? `<h3 class="sub">得票率</h3><div class="graph rate">${rr.map(([n, p]) => `<div class="g-row${p > 0 && p === maxR ? ' top' : ''}"><span class="g-name">${escN(n, 10)}</span><span class="g-track"><i style="width:${Math.max(4, (p / maxR) * 100)}%"></i></span><span class="g-val">${Math.round(p)}<small>%</small></span></div>`).join('')}</div>` : '';
-    if (!v.history.length) inner = '<h3>これまでの記録</h3><p class="hint">記録はありません</p>';
-    else inner = `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
-      <article class="rec">
-        <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
-        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${escN(e.author, 12)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
-      </article>`).join('')}</div>`;
-  } else if (k === 'rename') {
-    inner = `<h3>表示名を変える</h3><div class="stack">
-      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="200" autocomplete="off" value="${esc(drafts.rename)}"></label>
-      <button class="btn primary block" data-do="doRename">変更する</button></div>`;
-  } else if (k === 'settings') {
-    const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
-    const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${String(s[key]) === String(val) ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
-    const ids = s.order.filter((id) => v.players.some((p) => p.id === id && !p.spectator));
-    const order = s.presenterMode === 'rotation' ? `<h2>順番（上から）</h2><ul class="order">${ids.map((id, i) => `<li>${esc(v.players.find((p) => p.id === id).name)}<span>
-      <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="-1" ${i === 0 || locked ? 'disabled' : ''} aria-label="上へ">↑</button>
-      <button class="btn small" data-do="move" data-id="${esc(id)}" data-dir="1" ${i === ids.length - 1 || locked ? 'disabled' : ''} aria-label="下へ">↓</button></span></li>`).join('')}</ul>` : '';
-    inner = `<h3>部屋設定</h3><div class="stack">
-      ${locked ? '<p class="hint">ラウンド中は変更できません</p>' : ''}
-      <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
-      <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
-      <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
-      ${timeSliderHtml(s.timeLimit, 'settings', locked)}
-      ${order}</div>`;
-  } else if (k === 'transfer') {
-    inner = `<h3>主催者を譲渡する</h3><div class="menu">${pick('transfer', others.filter((p) => p.connected))}</div>`;
-  } else if (k === 'howto') {
-    loadHowto();
-    inner = `<h3>遊び方</h3><div class="howto">${howtoHtml ?? '<p class="hint">読み込んでいます…</p>'}</div>`;
-  } else if (k === 'players') {
-    // 全員が見られる。外せるのは主催者だけ（自分自身はタップしても何も起きない）
-    const row = (p) => {
-      const me = p.id === v.me.id;
-      const inner = `${p.isHost ? badgeHost : ''}${p.spectator ? badgeSpec : ''}<span class="pname">${esc(p.name)}</span>${me ? '<span class="tag">あなた</span>' : ''}${p.connected === false ? '<span class="tag">離席中</span>' : ''}`;
-      return host && !me
-        ? `<button class="btn prow" data-do="pick" data-kind="remove" data-id="${esc(p.id)}">${inner}</button>`
-        : `<div class="prow${me ? ' me' : ''}">${inner}</div>`;
-    };
-    inner = `<h3>参加者一覧</h3><div class="plist">${v.players.map(row).join('')}</div>`;
-  } else if (k === 'allow') {
-    inner = `<h3>再入室を許可する</h3><div class="menu">${pick('allow', v.removed)}</div>`;
-  } else if (k === 'chooser') {
-    inner = `<h3>選ぶ人を任せる</h3><div class="menu"><button class="btn" data-do="randomChooser">ランダムで指名する</button>${pick('chooser', v.players.filter((p) => p.connected && p.id !== v.chooserId))}</div>`;
-  } else if (k === 'presenter') {
-    inner = `<h3>出題者を指名する</h3><div class="menu">
-      <button class="btn" data-do="randomPresenter">ランダムで指名する</button>
-      ${pick('presenter', v.players.filter((p) => p.connected && p.id !== v.presenterId))}</div>`;
-  }
-  return `<div class="scrim" data-do="scrim"><div class="sheet"><button class="x" data-do="closeSheet" aria-label="閉じる">×</button>${inner}</div></div>`;
-}
-
-function modalHtml() {
-  const m = ui.modal;
-  if (!m) return '';
-  return `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="modalCancel" aria-label="閉じる">×</button>
-    ${m.quote ? `<p class="vquote">${esc(m.quote)}</p>` : `<p>${esc(m.body)}</p>`}
-    <div class="dialog-actions"><button class="btn ${m.danger ? 'danger' : 'primary'} go" data-do="modalOk">${esc(m.ok)}</button></div>
-  </div></div>`;
-}
-
-const toastHtml = () => (ui.toast ? `<div class="toast" role="status">${esc(ui.toast)}</div>` : '');
 
 // ---------- 操作 ----------
 
 function confirmPick(kind, id) {
-  const name = view.players.find((p) => p.id === id)?.name ?? view.removed.find((p) => p.id === id)?.name ?? '';
+  const name = state.view.players.find((p) => p.id === id)?.name ?? state.view.removed.find((p) => p.id === id)?.name ?? '';
   const spec = {
     transfer: { body: `${name}さんに主催者を譲渡します。あなたは一般参加者になります。`, ok: '譲渡する', go: () => act('transferHost', { to: id }) },
     remove: { body: `${name}さんを部屋から外します。許可するまで、入り直せなくなります。`, ok: '外す', danger: true, go: () => act('removePlayer', { to: id }) },
@@ -1048,8 +408,8 @@ const handlers = {
   },
   newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
-    if (!sendCritical({ t: 'create', name: prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
-    autoJoin = true;
+    if (!sendCritical({ t: 'create', name: state.prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
+    state.autoJoin = true;
     ui.createOpen = false;
     ui.joining = true; // 押した直後に、反応を見せる
     render();
@@ -1063,16 +423,16 @@ const handlers = {
   join() {
     const code = drafts.code.trim().toUpperCase();
     if (code.length < 4) return toast('部屋コードを4文字で入力してください');
-    autoJoin = true;
+    state.autoJoin = true;
     if (sendJoin(code, ui.joinWatch)) { ui.joining = true; render(); }
   },
   setJoinWatch(d) { ui.joinWatch = d.val === 'true'; render(); },
   resume() {
-    autoJoin = true; endMessage = null;
-    sendJoin(session.code);
+    state.autoJoin = true; state.endMessage = null;
+    sendJoin(state.session.code);
   },
   openRename() {
-    drafts.rename = view.me.name;
+    drafts.rename = state.view.me.name;
     ui.sheet = { kind: 'rename' };
     render();
     document.getElementById('renameInput')?.focus();
@@ -1080,13 +440,13 @@ const handlers = {
   doRename() {
     const name = drafts.rename.trim();
     if (!name) return toast('表示名を入力してください');
-    if (name === view.me.name) { // 変わっていなくても、この名前を次の部屋以降の既定にする
-      prefName = name; saveName(name); ui.sheet = null; render(); return;
+    if (name === state.view.me.name) { // 変わっていなくても、この名前を次の部屋以降の既定にする
+      state.prefName = name; saveName(name); ui.sheet = null; render(); return;
     }
     ui.pendingRename = name;
     act('rename', { name });
   },
-  backToEntry() { endMessage = null; render(); },
+  backToEntry() { state.endMessage = null; render(); },
   openMenu() { ui.sheet = { kind: 'menu' }; render(); },
   closeSheet() { ui.sheet = null; render(); },
   scrim(_d, el, e) { if (e.target === el) { ui.sheet = null; render(); } },
@@ -1094,7 +454,7 @@ const handlers = {
   sheet(d) { ui.sheet = { kind: d.kind }; render(); },
   set(d) { act('setSettings', { patch: { [d.key]: d.val } }); },
   move(d) {
-    const ids = view.settings.order.filter((id) => view.players.some((p) => p.id === id));
+    const ids = state.view.settings.order.filter((id) => state.view.players.some((p) => p.id === id));
     const i = ids.indexOf(d.id), j = i + Number(d.dir);
     if (i < 0 || j < 0 || j >= ids.length) return;
     [ids[i], ids[j]] = [ids[j], ids[i]];
@@ -1104,7 +464,7 @@ const handlers = {
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
   reclaim() {
     ui.sheet = null;
-    const who = view.phase === 'vote' ? '正解を選ぶ人' : '出題者';
+    const who = state.view.phase === 'vote' ? '正解を選ぶ人' : '出題者';
     ui.modal = { body: `${who}の役割を、主催者に戻します。`, ok: '回収する', onOk: () => act('reclaimRole') };
     render();
   },
@@ -1112,19 +472,19 @@ const handlers = {
   // 参戦／観戦の切り替え（メニューは開いたまま）。回答中までは、すぐ。それ以降は次のラウンドから。
   setSpectate(d) {
     const want = d.val === 'true';
-    if (want === Boolean(view.me.nextSpectator ?? view.me.spectator)) return;
+    if (want === Boolean(state.view.me.nextSpectator ?? state.view.me.spectator)) return;
     if (!act('setSpectator', { spectator: want })) return;
-    if (!['lobby', 'topic', 'answer', 'result'].includes(view.phase) && want !== view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
+    if (!['lobby', 'topic', 'answer', 'result'].includes(state.view.phase) && want !== state.view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
     render();
   },
-  toggleSpectate() { handlers.setSpectate({ val: String(!(view.me.nextSpectator ?? view.me.spectator)) }); },
+  toggleSpectate() { handlers.setSpectate({ val: String(!(state.view.me.nextSpectator ?? state.view.me.spectator)) }); },
   resetRoom() {
     ui.sheet = null;
     ui.modal = { body: '記録と問題数を消して、最初の画面に戻します。参加者と設定は、そのまま残ります。', ok: 'リセットする', danger: true, onOk: () => act('resetRoom') };
     render();
   },
   reportTopic() {
-    const t = view.topic?.theme;
+    const t = state.view.topic?.theme;
     if (!t || drafts.theme.trim() !== t) return toast('書き換えた題材は報告できません');
     ui.modal = {
       body: `「${t}」を報告して、引き直します。この部屋では二度と出ません。`,
@@ -1150,33 +510,33 @@ const handlers = {
   editDone() { ui.editing = false; ui.sel.clear(); render(); },
   toggleSel(d) { if (ui.sel.has(d.id)) ui.sel.delete(d.id); else ui.sel.add(d.id); render(); },
   groupSel() {
-    const ids = view.pool.filter((c) => ui.sel.has(c.answerId)).map((c) => c.answerId);
+    const ids = state.view.pool.filter((c) => ui.sel.has(c.answerId)).map((c) => c.answerId);
     if (ids.length < 2) return;
     ui.sel.clear();
     act('group', { answerIds: ids });
   },
   ungroupSel() {
-    const ids = view.pool.filter((c) => ui.sel.has(c.answerId) && c.group).map((c) => c.answerId);
+    const ids = state.view.pool.filter((c) => ui.sel.has(c.answerId) && c.group).map((c) => c.answerId);
     if (!ids.length) return;
     ui.sel.clear();
     act('ungroup', { answerIds: ids });
   },
   vote(d) {
-    const mine = view.pool.find((x) => x.answerId === view.myVote);
-    const tapped0 = view.pool.find((x) => x.answerId === d.id);
+    const mine = state.view.pool.find((x) => x.answerId === state.view.myVote);
+    const tapped0 = state.view.pool.find((x) => x.answerId === d.id);
     if (mine && tapped0 && mine.group && mine.group === tapped0.group) return; // 同じまとまりへは、投票済み
-    if (view.myVote === d.id) return;
-    const c = view.pool.find((x) => x.answerId === d.id);
+    if (state.view.myVote === d.id) return;
+    const c = state.view.pool.find((x) => x.answerId === d.id);
     if (!c) return;
-    const one = view.settings.chooserMode === 'one';
-    ui.modal = { quote: c.text, ok: one ? (view.myVote ? '正解を変更' : '正解にする') : (view.myVote ? '投票を変更' : '投票する'), onOk: () => act(one ? 'choose' : 'vote', { answerId: d.id }) };
+    const one = state.view.settings.chooserMode === 'one';
+    ui.modal = { quote: c.text, ok: one ? (state.view.myVote ? '正解を変更' : '正解にする') : (state.view.myVote ? '投票を変更' : '投票する'), onOk: () => act(one ? 'choose' : 'vote', { answerId: d.id }) };
     render();
   },
   advance() { act('advance'); },
   modalOk() { const m = ui.modal; ui.modal = null; render(); m?.onOk?.(); },
   modalCancel() { ui.modal = null; render(); },
   async copyCode() {
-    const code = view.code;
+    const code = state.view.code;
     try {
       await navigator.clipboard.writeText(code);
     } catch { // 使えない環境では、選択してコピーする方法で試す
@@ -1191,18 +551,18 @@ const handlers = {
     toast(`部屋番号 ${code} をコピーしました`);
   },
   async share() {
-    const url = `${location.origin}/?code=${view.code}`; // 開くだけで、この部屋にそのまま入れる
+    const url = `${location.origin}/?code=${state.view.code}`; // 開くだけで、この部屋にそのまま入れる
     ui.sheet = null;
     // リンクは文章の中に入れる（url を別に渡すと、「コピー」で落ちる端末がある）
     try {
-      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `朝からそれ正解の部屋に入る（部屋コード ${view.code}）\n${url}` }); return; }
+      if (navigator.share) { await navigator.share({ title: '朝からそれ正解', text: `朝からそれ正解の部屋に入る（部屋コード ${state.view.code}）\n${url}` }); return; }
     } catch { return; } // 共有をやめた場合
     try { await navigator.clipboard.writeText(url); toast('招待リンクをコピーしました'); } catch { toast(url); }
   },
   leave() {
     ui.sheet = null;
-    const others = view.players.filter((p) => p.id !== view.me.id && p.connected);
-    if (view.me.isHost && others.length > 0) {
+    const others = state.view.players.filter((p) => p.id !== state.view.me.id && p.connected);
+    if (state.view.me.isHost && others.length > 0) {
       ui.sheet = { kind: 'transfer' };
       toast('先に主催者を譲渡してください');
       return;
@@ -1238,7 +598,6 @@ $app.addEventListener('input', (e) => {
 });
 
 // 制限時間のバー：動かしている間は表示だけ変えて、指を離したときに確定する
-const sliderVal = (el) => { const n = Number(el.value); return n > TS_MAX ? 0 : n; };
 $app.addEventListener('input', (e) => {
   const el = e.target;
   if (!el.dataset?.slider) return;
@@ -1277,5 +636,8 @@ $app.addEventListener('compositionend', () => {
   setTimeout(() => { if (pendingRender && !composing) { pendingRender = false; render(); } }, 0);
 });
 
+startRosterLoop();
+startBounceLoop();
+startTimerTicker();
 render();
 connect();
