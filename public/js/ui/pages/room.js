@@ -8,6 +8,7 @@ import { actionBar } from '../components/actionBar.js';
 import { modalHtml, toastHtml } from '../components/parts.js';
 import { answerHtml, resultHtml, revealHtml, topicHtml, voteHtml } from './rounds.js';
 import { sheetHtml } from '../sheets/index.js';
+import { PHASE } from '../../../../shared/phases.js';
 
 export function roomHtml() {
   const v = state.view;
@@ -21,7 +22,7 @@ export function roomHtml() {
       </div>
     </header>
     ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
-    ${v.phase === 'vote' ? `<div class="phaseband">${v.settings.chooserMode === 'one' ? '選択中' : '投票中'}</div>` : ''}
+    ${v.phase === PHASE.VOTE ? `<div class="phaseband">${v.settings.chooserMode === 'one' ? '選択中' : '投票中'}</div>` : ''}
     <main class="main">${phaseHtml()}</main>
     ${actionBar()}
     ${sheetHtml()}${modalHtml()}${toastHtml()}`;
@@ -29,12 +30,12 @@ export function roomHtml() {
 
 function phaseHtml() {
   switch (state.view.phase) {
-    case 'lobby': return lobbyHtml();
-    case 'topic': return topicHtml();
-    case 'answer': return answerHtml();
-    case 'reveal': return revealHtml();
-    case 'vote': return voteHtml();
-    case 'result': return resultHtml();
+    case PHASE.LOBBY: return lobbyHtml();
+    case PHASE.TOPIC: return topicHtml();
+    case PHASE.ANSWER: return answerHtml();
+    case PHASE.REVEAL: return revealHtml();
+    case PHASE.VOTE: return voteHtml();
+    case PHASE.RESULT: return resultHtml();
     default: return '';
   }
 }

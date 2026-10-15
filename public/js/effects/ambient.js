@@ -2,6 +2,7 @@
 
 import { state } from '../core/state.js';
 import { timerInfo } from '../ui/components/parts.js';
+import { PHASE } from '../../../shared/phases.js';
 
 export const prefersReducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 
@@ -38,7 +39,7 @@ export function startBounceLoop() {
 export function startTimerTicker() {
   setInterval(() => {
     const el = document.getElementById('timer');
-    if (!el || state.view?.phase !== 'answer') return;
+    if (!el || state.view?.phase !== PHASE.ANSWER) return;
     const t = timerInfo();
     const tx = document.getElementById('timerText');
     if (tx && tx.textContent !== t.text) tx.textContent = t.text;

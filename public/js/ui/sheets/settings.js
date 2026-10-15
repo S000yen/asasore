@@ -2,9 +2,10 @@
 
 import { esc } from '../../lib/format.js';
 import { timeSliderHtml } from '../components/parts.js';
+import { BETWEEN_ROUNDS } from '../../../../shared/phases.js';
 
 export const settingsSheet = (v) => {
-  const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);
+  const s = v.settings, locked = !BETWEEN_ROUNDS.includes(v.phase);
   const seg = (key, opts) => `<div class="seg">${opts.map(([val, label]) => `<button class="btn small ${String(s[key]) === String(val) ? 'on' : ''}" data-do="set" data-key="${key}" data-val="${val}" ${locked ? 'disabled' : ''}>${label}</button>`).join('')}</div>`;
   const ids = s.order.filter((id) => v.players.some((p) => p.id === id && !p.spectator));
   const order = s.presenterMode === 'rotation' ? `<h2>順番（上から）</h2><ul class="order">${ids.map((id, i) => `<li>${esc(v.players.find((p) => p.id === id).name)}<span>

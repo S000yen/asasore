@@ -25,7 +25,7 @@ import {
   normalizeOrder,
 } from './roles.js';
 import { EVENT } from './events.js';
-import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from './phases.js';
+import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../shared/phases.js';
 
 export const REACTIONS = ['like', 'bad', 'cheer', 'laugh']; // いいね・バッド・応援・笑い
 const HIRAGANA = /^[\u3041-\u3093]$/;

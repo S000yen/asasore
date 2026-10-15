@@ -1,6 +1,8 @@
 // 画面が共有する状態（サーバーから届いた自分用のビューと、画面だけの状態）と、そこから決まる画面の判断。
 // 読み込んだだけでは、localStorage や DOM には触らない（起動時に main.js が初期値を入れる）。
 
+import { GROUPING_PHASES } from '../../../shared/phases.js';
+
 const initialState = () => ({
   view: null, // サーバーから届いた自分用の状態
   viewAt: 0, // 状態を受け取った時刻（経過時間の表示用）
@@ -29,5 +31,5 @@ export function resetState() {
 }
 
 // 主催者の「まとめを編集」中か。編集中は、完了するまで他の操作ができない。
-export const canEditGroups = () => Boolean(state.view?.me.isHost && ['reveal', 'vote'].includes(state.view.phase) && state.view.pool.filter((c) => c.revealed).length >= 2);
+export const canEditGroups = () => Boolean(state.view?.me.isHost && GROUPING_PHASES.includes(state.view.phase) && state.view.pool.filter((c) => c.revealed).length >= 2);
 export const isEditing = () => ui.editing && canEditGroups();

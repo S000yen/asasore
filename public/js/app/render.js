@@ -6,6 +6,7 @@ import { bomb, confetti, startBand } from '../effects/overlays.js';
 import { mdToHtml } from '../lib/format.js';
 import { entryHtml } from '../ui/pages/entry.js';
 import { roomHtml } from '../ui/pages/room.js';
+import { PHASE } from '../../../shared/phases.js';
 
 let composing = false, pendingRender = false;
 let lastPhaseKey = '';
@@ -17,9 +18,9 @@ function trackPhase() {
   if (key !== lastPhaseKey) {
     ui.sel.clear(); // 段階が変わったら、編集と選択は解く
     ui.editing = false;
-    if (state.view?.bombed && (phase === 'reveal' || phase === 'result') && lastPhaseKey.endsWith(':answer')) bomb();
-    if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
-    if (phase === 'result' && lastPhaseKey.endsWith(':vote') && state.view.result?.winners.length) confetti();
+    if (state.view?.bombed && (phase === PHASE.REVEAL || phase === PHASE.RESULT) && lastPhaseKey.endsWith(`:${PHASE.ANSWER}`)) bomb();
+    if (phase === PHASE.VOTE && lastPhaseKey.endsWith(`:${PHASE.REVEAL}`)) startBand();
+    if (phase === PHASE.RESULT && lastPhaseKey.endsWith(`:${PHASE.VOTE}`) && state.view.result?.winners.length) confetti();
     lastPhaseKey = key;
   }
   if (!isEditing()) { ui.editing = false; ui.sel.clear(); }

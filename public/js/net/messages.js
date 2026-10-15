@@ -5,6 +5,7 @@ import { drafts, state, ui } from '../core/state.js';
 import { floatMark } from '../effects/overlays.js';
 import { act, settleCritical } from './connection.js';
 import { saveName, saveSession } from './storage.js';
+import { PHASE } from '../../../shared/phases.js';
 
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 
@@ -77,8 +78,8 @@ export function onMessage(m) {
 function syncDrafts() {
   const v = state.view;
   if (v.round !== lastRound) { lastRound = v.round; drafts.answer = ''; }
-  if (v.phase === 'answer' && v.myAnswer !== null && drafts.answer === '') drafts.answer = v.myAnswer;
-  if (v.phase === 'topic' && v.me.isPresenter) {
+  if (v.phase === PHASE.ANSWER && v.myAnswer !== null && drafts.answer === '') drafts.answer = v.myAnswer;
+  if (v.phase === PHASE.TOPIC && v.me.isPresenter) {
     const key = `${v.round}:${v.presenterId}:${JSON.stringify(v.topic)}`;
     if (key !== lastTopicKey) {
       lastTopicKey = key;
@@ -96,8 +97,8 @@ function syncDrafts() {
 function confirmFor(m) {
   const p = m.pending;
   let body;
-  if (m.phase === 'answer') body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
-  else if (m.phase === 'reveal') body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
+  if (m.phase === PHASE.ANSWER) body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
+  else if (m.phase === PHASE.REVEAL) body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
   else if (state.view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
   else body = `まだ${p.count}人が未投票です（${p.names.join('、')}）。このまま結果を出しますか？`;
   return { body, ok: '進める', onOk: () => act('advance', { force: true }) };

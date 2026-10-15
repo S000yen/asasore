@@ -2,6 +2,7 @@
 
 import { escN } from '../../lib/format.js';
 import { menuIcon } from '../../lib/icons.js';
+import { PHASE } from '../../../../shared/phases.js';
 
 export const menuSheet = (v) => {
   const host = v.me.isHost;
@@ -15,7 +16,7 @@ export const menuSheet = (v) => {
         <div class="seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${(v.me.nextSpectator ?? v.me.spectator) === val ? 'on' : ''}" data-do="setSpectate" data-val="${val}">${label}</button>`).join('')}</div>
       </div>
       ${host ? `<div class="group"><p class="group-label">主催者</p>
-        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === 'vote' ? '選ぶ人を回収する' : '出題者を回収する', '', 'reclaim') : ''}
+        ${v.me.canReclaim ? item('', 'data-do="reclaim"', v.phase === PHASE.VOTE ? '選ぶ人を回収する' : '出題者を回収する', '', 'reclaim') : ''}
         ${item('', 'data-do="sheet" data-kind="settings"', 'ルール設定', '', 'settings')}
         ${item('', v.history.length ? 'data-do="resetRoom"' : 'disabled', '記録をリセット', '', 'reset')}
         ${item('', 'data-do="sheet" data-kind="transfer"', '主催者を譲る', '', 'transfer')}

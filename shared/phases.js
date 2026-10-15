@@ -1,5 +1,6 @@
 // 部屋の進行のフェーズ。lobby → topic → answer → reveal → vote → result → (次のラウンドの topic)
-// 値は、そのまま通信（view.phase）に載って、画面側も同じ文字列で見ているので、変えてはいけない。
+// サーバー（server/）と画面（public/js/）の両方が、この定義を読む。
+// 値は、そのまま通信（view.phase）に載っているので、変えてはいけない。
 
 export const PHASE = Object.freeze({
   LOBBY: 'lobby',

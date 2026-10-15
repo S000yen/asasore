@@ -5,6 +5,7 @@ import { toast } from '../core/hooks.js';
 import { drafts, newRoom, state, ui } from '../core/state.js';
 import { act, sendCritical, sendJoin } from '../net/connection.js';
 import { clientId, saveName } from '../net/storage.js';
+import { PHASE, SPECTATE_NOW_PHASES } from '../../../shared/phases.js';
 
 function confirmPick(kind, id) {
   const name = state.view.players.find((p) => p.id === id)?.name ?? state.view.removed.find((p) => p.id === id)?.name ?? '';
@@ -86,7 +87,7 @@ export const handlers = {
   randomPresenter() { ui.sheet = null; act('randomPresenter'); render(); },
   reclaim() {
     ui.sheet = null;
-    const who = state.view.phase === 'vote' ? '正解を選ぶ人' : '出題者';
+    const who = state.view.phase === PHASE.VOTE ? '正解を選ぶ人' : '出題者';
     ui.modal = { body: `${who}の役割を、主催者に戻します。`, ok: '回収する', onOk: () => act('reclaimRole') };
     render();
   },
@@ -96,7 +97,7 @@ export const handlers = {
     const want = d.val === 'true';
     if (want === Boolean(state.view.me.nextSpectator ?? state.view.me.spectator)) return;
     if (!act('setSpectator', { spectator: want })) return;
-    if (!['lobby', 'topic', 'answer', 'result'].includes(state.view.phase) && want !== state.view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
+    if (!SPECTATE_NOW_PHASES.includes(state.view.phase) && want !== state.view.me.spectator) toast(`次のラウンドから${want ? '観戦' : '参戦'}になります`);
     render();
   },
   toggleSpectate() { handlers.setSpectate({ val: String(!(state.view.me.nextSpectator ?? state.view.me.spectator)) }); },
