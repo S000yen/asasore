@@ -1,6 +1,6 @@
 // 画面の HTML を作る関数を、ブラウザなしで動かして、HTML の文字列を取り出す。
 //
-// いまの public/app.js は、グローバルな状態を直接読み書きする1枚のスクリプトなので、
+// いまの public/js/app/main.js は、グローバルな状態を直接読み書きする1枚のスクリプトなので、
 // Node の vm に、DOM の代わりになる最小限の偽物を渡して読み込み、状態を代入してから entryHtml() / roomHtml() を呼ぶ。
 // （画面を module に分けたあとは、この中身を、新しい views を import する形に差し替える。シナリオと golden は、そのまま使う。）
 
@@ -10,13 +10,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-const SOURCE = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+const SOURCE = fs.readFileSync(path.join(ROOT, 'public', 'js', 'app', 'main.js'), 'utf8');
 const HOWTO = fs.readFileSync(path.join(ROOT, 'public', 'howto.md'), 'utf8');
-const script = new vm.Script(SOURCE, { filename: 'public/app.js' });
+const script = new vm.Script(SOURCE, { filename: 'public/js/app/main.js' });
 
 const noop = () => {};
 
-// DOM の代わり。app.js が読み込み時に触るものだけを、何もしない形で用意する。
+// DOM の代わり。main.js が読み込み時に触るものだけを、何もしない形で用意する。
 function makeSandbox() {
   const element = () => ({
     addEventListener: noop,
