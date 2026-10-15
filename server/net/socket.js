@@ -2,10 +2,10 @@
 // 誰に何を送るかは hub.js、操作の中身は actions.js、ゲームのルールは room.js が受け持つ。
 
 import { WebSocketServer } from 'ws';
-import { RoomError } from './roles.js';
-import { handleAct } from './actions.js';
+import { RoomError } from '../game/roles.js';
+import { handleAct } from '../game/actions.js';
 import { send } from './hub.js';
-import { ERR, MSG } from '../shared/protocol.js';
+import { ERR, MSG } from '../../shared/protocol.js';
 
 // 接続を1本受け付けて、メッセージを処理する。
 export function handleConnection(ws, { hub, topics, build }) {

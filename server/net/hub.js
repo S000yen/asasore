@@ -4,10 +4,10 @@
 // entry = { room, sockets: Map<playerId, Set<ws>> }。同じ人が複数の画面（タブ）で開いていることがあるので、接続は集合で持つ。
 
 import { randomInt } from 'node:crypto';
-import { Room } from './room.js';
-import { describe } from './messages.js';
-import { MSG } from '../shared/protocol.js';
-import { ROOM_CODE_LENGTH } from '../shared/rules.js';
+import { Room } from '../game/room.js';
+import { describe } from '../game/messages.js';
+import { MSG } from '../../shared/protocol.js';
+import { ROOM_CODE_LENGTH } from '../../shared/rules.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
 

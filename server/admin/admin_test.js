@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { handleAdmin, tokenOk } from './admin.js';
-import { TopicPool } from './topics.js';
+import { TopicPool } from '../data/topics.js';
 
 test('合言葉の判定', () => {
   assert.equal(tokenOk('abc', 'abc'), true);
