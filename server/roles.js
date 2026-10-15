@@ -83,8 +83,8 @@ export function pickNextInRotation(room) {
   return null;
 }
 
-// ランダム指名。本人も含めた、接続中の全員から選ぶ。
-export function pickRandomPresenter(room) {
+// ランダム指名（出題者・選ぶ人）。本人も含めた、接続中で参戦中の全員から選ぶ。
+export function pickRandomPlayer(room) {
   const all = connectedGamePlayers(room);
   return all.length > 0 ? all[randomInt(all.length)] : null;
 }
