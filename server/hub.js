@@ -6,6 +6,7 @@
 import { randomInt } from 'node:crypto';
 import { Room } from './room.js';
 import { describe } from './messages.js';
+import { MSG } from '../shared/protocol.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
 const CODE_LENGTH = 4;
@@ -68,7 +69,7 @@ export class Hub {
   // 自分の意思での退出。その人の接続を全部閉じ、ほかの人に知らせる。（room.leave は呼び出し側が済ませておく）
   leave(entry, pid) {
     for (const ws of entry.sockets.get(pid) ?? []) {
-      send(ws, { t: 'left' });
+      send(ws, { t: MSG.LEFT });
       ws.close();
     }
     entry.sockets.delete(pid);
@@ -84,18 +85,18 @@ export class Hub {
         view = entry.room.viewFor(pid);
       } catch {
         for (const ws of set) {
-          send(ws, { t: 'removed' });
+          send(ws, { t: MSG.REMOVED });
           ws.close();
         }
         entry.sockets.delete(pid);
         continue;
       }
-      for (const ws of set) send(ws, { t: 'state', view });
+      for (const ws of set) send(ws, { t: MSG.STATE, view });
     }
   }
 
   notifyAll(entry, text) {
-    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: 'notice', text });
+    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: MSG.NOTICE, text });
   }
 
   // 部屋で起きたイベントを、通知文にして全員に出す（通知のないイベントは何もしない）
@@ -106,11 +107,11 @@ export class Hub {
 
   // 反応マークは、状態を変えず、全員に流すだけ
   sendReact(entry, kind) {
-    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: 'react', kind });
+    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: MSG.REACT, kind });
   }
 
   closeRoom(code, entry) {
-    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: 'closed' });
+    for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: MSG.CLOSED });
     this.rooms.delete(code);
   }
 

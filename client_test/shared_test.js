@@ -85,3 +85,69 @@ test('フェーズ名の直書きは、shared/ の外に残っていない（定
     });
   }
 });
+
+// ---------- 通信メッセージ（shared/protocol.js） ----------
+
+const CLIENT_TO_SERVER = ['CREATE', 'JOIN', 'ACT'];
+const SERVER_TO_CLIENT = ['HELLO', 'JOINED', 'STATE', 'NOTICE', 'REACT', 'ERROR', 'NEED_CONFIRM', 'REMOVED', 'CLOSED', 'LEFT'];
+const textOf = (files) => files.map((f) => stripComments(read(f))).join('\n');
+const clientText = textOf(clientFiles);
+const serverText = textOf(serverFiles);
+
+test('通信の値は、これまでと同じ（直書きで固定。変えると、古い画面や古いサーバーとつながらなくなる）', () => {
+  assert.deepEqual({ ...shared.MSG }, {
+    CREATE: 'create', JOIN: 'join', ACT: 'act',
+    HELLO: 'hello', JOINED: 'joined', STATE: 'state', NOTICE: 'notice', REACT: 'react', ERROR: 'error',
+    NEED_CONFIRM: 'needConfirm', REMOVED: 'removed', CLOSED: 'closed', LEFT: 'left',
+  });
+  assert.deepEqual({ ...shared.ERR }, { NO_ROOM: 'no_room', BANNED: 'banned' });
+  assert.deepEqual([...CLIENT_TO_SERVER, ...SERVER_TO_CLIENT].sort(), Object.keys(shared.MSG).sort()); // このテストの分類に、漏れがない
+  assert.ok(Object.isFrozen(shared.MSG) && Object.isFrozen(shared.ERR));
+});
+
+test('メッセージ種別・エラーコードの直書きは、shared/ の外に残っていない', () => {
+  const MSG_VALUES = 'hello|joined|state|notice|react|error|needConfirm|removed|closed|left|create|join|act';
+  const patterns = [
+    new RegExp(`\\bt: '(${MSG_VALUES})'`), // { t: 'state', … }
+    new RegExp(`\\bmsg\\.t === '(${MSG_VALUES})'`),
+    new RegExp(`\\bcase '(${MSG_VALUES})'`),
+    /RoomError\('(no_room|banned)'/,
+    /\bm\.code === '(no_room|banned)'/,
+  ];
+  for (const f of [...clientFiles, ...serverFiles]) {
+    stripComments(read(f)).split('\n').forEach((line, i) => {
+      for (const re of patterns) if (re.test(line)) assert.fail(`${rel(f)} の ${i + 1} 行付近に、直書きが残っています: ${line.trim().slice(0, 100)}`);
+    });
+  }
+});
+
+test('サーバーが送るメッセージは、すべて画面が受け取る。画面が送るメッセージは、すべてサーバーが受け取る', () => {
+  const messages = read(path.join(ROOT, 'public/js/net/messages.js'));
+  for (const k of SERVER_TO_CLIENT) {
+    assert.ok(new RegExp(`\\bt: MSG\\.${k}\\b`).test(serverText), `サーバーが MSG.${k} を送っていません`);
+    assert.ok(new RegExp(`case MSG\\.${k}\\b`).test(messages), `画面（net/messages.js）が MSG.${k} を受け取っていません`);
+  }
+  for (const k of CLIENT_TO_SERVER) {
+    assert.ok(new RegExp(`\\bt: MSG\\.${k}\\b`).test(clientText), `画面が MSG.${k} を送っていません`);
+    assert.ok(new RegExp(`msg\\.t === MSG\\.${k}\\b`).test(serverText), `サーバーが MSG.${k} を受け取っていません`);
+  }
+});
+
+test('画面がエラーコードで動きを変えるもの（ERR）は、サーバーが実際に使っている', () => {
+  for (const k of Object.keys(shared.ERR)) {
+    assert.ok(new RegExp(`\\bERR\\.${k}\\b`).test(serverText), `サーバーが ERR.${k} を使っていません`);
+    assert.ok(new RegExp(`\\bERR\\.${k}\\b`).test(clientText), `画面が ERR.${k} を見ていません`);
+  }
+});
+
+test('画面が送る操作の名前（act）は、すべてサーバーの操作の表にある', () => {
+  const server = read(path.join(ROOT, 'server/actions.js'));
+  const table = new Set([...server.matchAll(/^ {2}([A-Za-z]+): /gm)].map((m) => m[1]));
+  assert.ok(table.size > 20, '操作の表が読み取れていません');
+  const sent = new Set();
+  for (const m of clientText.matchAll(/\bact\(\s*'([A-Za-z]+)'/g)) sent.add(m[1]);
+  for (const m of clientText.matchAll(/\bact\(\w+ \? '([A-Za-z]+)' : '([A-Za-z]+)'/g)) { sent.add(m[1]); sent.add(m[2]); } // 条件で切り替えるもの
+  assert.ok(sent.size > 20, '画面が送る操作が読み取れていません');
+  const missing = [...sent].filter((n) => !table.has(n));
+  assert.deepEqual(missing, [], `サーバーにない操作を送っています: ${missing.join(', ')}`);
+});

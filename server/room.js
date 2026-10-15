@@ -26,6 +26,7 @@ import {
 } from './roles.js';
 import { EVENT } from './events.js';
 import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../shared/phases.js';
+import { ERR } from '../shared/protocol.js';
 
 export const REACTIONS = ['like', 'bad', 'cheer', 'laugh']; // いいね・バッド・応援・笑い
 const HIRAGANA = /^[\u3041-\u3093]$/;
@@ -99,7 +100,7 @@ export class Room {
     if (this.closed) throw new RoomError('closed', 'この部屋は閉じられています');
     const known = playerId ? this.players.get(playerId) : null;
     if (known) {
-      if (known.removed) throw new RoomError('banned', 'この部屋には入れません');
+      if (known.removed) throw new RoomError(ERR.BANNED, 'この部屋には入れません');
       known.connected = true;
       known.disconnectedAt = null;
       return known;

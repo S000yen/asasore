@@ -6,24 +6,25 @@ import { floatMark } from '../effects/overlays.js';
 import { act, settleCritical } from './connection.js';
 import { saveName, saveSession } from './storage.js';
 import { PHASE } from '../../../shared/phases.js';
+import { ERR, MSG } from '../../../shared/protocol.js';
 
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 
 export function onMessage(m) {
   switch (m.t) {
-    case 'hello': { // 開きっぱなしの古い画面は、新しい版が出ていたら、自分で読み込み直す
+    case MSG.HELLO: { // 開きっぱなしの古い画面は、新しい版が出ていたら、自分で読み込み直す
       const mine = document.querySelector('meta[name=build]')?.content;
       if (mine && m.build && mine !== m.build) location.reload();
       return;
     }
-    case 'joined':
+    case MSG.JOINED:
       settleCritical();
       state.session = { code: m.code, playerId: m.playerId };
       saveSession(state.session);
       state.endMessage = null;
       ui.joinOpen = false;
       return;
-    case 'state':
+    case MSG.STATE:
       state.view = m.view;
       state.viewAt = performance.now();
       ui.joining = false;
@@ -36,38 +37,38 @@ export function onMessage(m) {
       }
       syncDrafts();
       break;
-    case 'notice':
+    case MSG.NOTICE:
       toast(m.text);
       return;
-    case 'react':
+    case MSG.REACT:
       floatMark(m.kind);
       return;
-    case 'error':
+    case MSG.ERROR:
       settleCritical();
       ui.joining = false;
       ui.pendingRename = null;
-      if (m.code === 'no_room') { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
+      if (m.code === ERR.NO_ROOM) { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
         if (!state.session || state.session.code === state.lastJoinCode) { state.session = null; saveSession(null); }
         state.view = null;
       }
-      if (m.code === 'banned') {
+      if (m.code === ERR.BANNED) {
         state.view = null; state.autoJoin = false;
         state.endMessage = { title: 'この部屋には入れません', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
       }
       toast(m.message);
       break;
-    case 'needConfirm':
+    case MSG.NEED_CONFIRM:
       ui.modal = confirmFor(m);
       break;
-    case 'removed':
+    case MSG.REMOVED:
       state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
       state.endMessage = { title: '部屋から外されました', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
       break;
-    case 'closed':
+    case MSG.CLOSED:
       state.view = null; state.session = null; saveSession(null); ui.sheet = null; ui.modal = null;
       state.endMessage = { title: '部屋が閉じられました', body: '' };
       break;
-    case 'left':
+    case MSG.LEFT:
       state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
       break;
   }

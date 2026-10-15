@@ -6,6 +6,7 @@ import { drafts, newRoom, state, ui } from '../core/state.js';
 import { act, sendCritical, sendJoin } from '../net/connection.js';
 import { clientId, saveName } from '../net/storage.js';
 import { PHASE, SPECTATE_NOW_PHASES } from '../../../shared/phases.js';
+import { MSG } from '../../../shared/protocol.js';
 
 function confirmPick(kind, id) {
   const name = state.view.players.find((p) => p.id === id)?.name ?? state.view.removed.find((p) => p.id === id)?.name ?? '';
@@ -31,7 +32,7 @@ export const handlers = {
   },
   newSet(d) { newRoom[d.key] = d.val; render(); },
   create() {
-    if (!sendCritical({ t: 'create', name: state.prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
+    if (!sendCritical({ t: MSG.CREATE, name: state.prefName, clientId, settings: { ...newRoom } })) return; // つながっていないときは、ポップアップを閉じずに知らせる
     state.autoJoin = true;
     ui.createOpen = false;
     ui.joining = true; // 押した直後に、反応を見せる

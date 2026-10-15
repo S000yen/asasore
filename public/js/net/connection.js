@@ -3,6 +3,7 @@
 import { requestRender, toast } from '../core/hooks.js';
 import { state, ui } from '../core/state.js';
 import { clientId } from './storage.js';
+import { MSG } from '../../../shared/protocol.js';
 
 let ws = null;
 let backoff = 500;
@@ -73,12 +74,12 @@ function retryCritical() {
   connect();
   a.timer = setTimeout(retryCritical, 5000);
 }
-export const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
+export const act = (a, extra = {}) => sendRaw({ t: MSG.ACT, a, ...extra });
 
 // 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
 export function sendJoin(code, spectator = false) {
   state.lastJoinCode = code;
-  return sendCritical({ t: 'join', code, name: state.prefName, clientId, spectator, playerId: state.session?.code === code ? state.session.playerId : null });
+  return sendCritical({ t: MSG.JOIN, code, name: state.prefName, clientId, spectator, playerId: state.session?.code === code ? state.session.playerId : null });
 }
 
 function joinFromLink() {
