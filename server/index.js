@@ -2,72 +2,28 @@
 // ゲームのルールは room.js が持ち、ここは受け付けと配信だけをする。
 
 import http from 'node:http';
-import { randomInt } from 'node:crypto';
 import { WebSocketServer } from 'ws';
-import { Room } from './room.js';
 import { RoomError } from './roles.js';
 import { TopicPool } from './topics.js';
-import { describe } from './messages.js';
 import { handleAct } from './actions.js';
 import { createStoreFromEnv } from './store.js';
 import { computeBuild, createRequestHandler } from './http.js';
+import { Hub, send } from './hub.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
-const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
 const TICK_MS = 1000;
 const PING_MS = 25000;
 
 const BUILD = computeBuild();
 
 const startedAt = Date.now();
-const rooms = new Map(); // code -> { room, sockets: Map<playerId, Set<ws>> }
+const hub = new Hub();
 const topics = new TopicPool();
 topics.attach(createStoreFromEnv()); // DATABASE_URL があれば、題材と報告を保存・読み込み。無ければ、メモリだけ（起動は待たない）
 
 // ---------- HTTP ----------
 
-const server = http.createServer(createRequestHandler({ topics, rooms, build: BUILD, startedAt }));
-
-// ---------- 配信 ----------
-
-const send = (ws, msg) => {
-  if (ws.readyState === 1) ws.send(JSON.stringify(msg));
-};
-
-function newCode() {
-  for (;;) {
-    let code = '';
-    for (let i = 0; i < 4; i++) code += CODE_CHARS[randomInt(CODE_CHARS.length)];
-    if (!rooms.has(code)) return code;
-  }
-}
-
-// 参加者ごとに、その人用のビューを送る（匿名モードの作者はここでも出さない）。
-function broadcast(entry) {
-  for (const [pid, set] of [...entry.sockets]) {
-    let view;
-    try {
-      view = entry.room.viewFor(pid);
-    } catch {
-      for (const ws of set) {
-        send(ws, { t: 'removed' });
-        ws.close();
-      }
-      entry.sockets.delete(pid);
-      continue;
-    }
-    for (const ws of set) send(ws, { t: 'state', view });
-  }
-}
-
-function notifyAll(entry, text) {
-  for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: 'notice', text });
-}
-
-function closeRoom(code, entry) {
-  for (const set of entry.sockets.values()) for (const ws of set) send(ws, { t: 'closed' });
-  rooms.delete(code);
-}
+const server = http.createServer(createRequestHandler({ topics, rooms: hub.rooms, build: BUILD, startedAt }));
 
 // ---------- WebSocket ----------
 
@@ -92,10 +48,9 @@ wss.on('connection', (ws) => {
   const attach = (code, entry, pid) => {
     ctx.code = code;
     ctx.pid = pid;
-    if (!entry.sockets.has(pid)) entry.sockets.set(pid, new Set());
-    entry.sockets.get(pid).add(ws);
+    hub.attach(entry, pid, ws);
     send(ws, { t: 'joined', code, playerId: pid });
-    broadcast(entry);
+    hub.broadcast(entry);
   };
 
   ws.on('message', (raw) => {
@@ -108,24 +63,16 @@ wss.on('connection', (ws) => {
     if (typeof msg.clientId === 'string' && /^[\w-]{8,64}$/.test(msg.clientId)) ctx.clientId = msg.clientId;
     try {
       if (msg.t === 'create') {
-        const code = newCode();
-        const room = new Room(code);
-        const entry = { room, sockets: new Map() };
-        const p = room.join(null, msg.name);
-        if (msg.settings && typeof msg.settings === 'object') { // 作成前に選んだ設定。不正な値は無視して、既定のまま作る
-          const { presenterMode, identityMode, chooserMode, timeLimit } = msg.settings;
-          try { room.setSettings(p.id, { presenterMode, identityMode, chooserMode, timeLimit }); } catch { /* 既定のまま */ }
-        }
-        rooms.set(code, entry);
-        attach(code, entry, p.id);
+        const { code, entry, player } = hub.createRoom(msg.name, msg.settings);
+        attach(code, entry, player.id);
       } else if (msg.t === 'join') {
         const code = String(msg.code ?? '').trim().toUpperCase();
-        const entry = rooms.get(code);
+        const entry = hub.get(code);
         if (!entry) throw new RoomError('no_room', 'その部屋は見つかりません（閉じられた可能性があります）');
         const p = entry.room.join(msg.playerId, msg.name, Date.now(), { spectator: Boolean(msg.spectator) });
         attach(code, entry, p.id);
       } else if (msg.t === 'act') {
-        const entry = rooms.get(ctx.code);
+        const entry = hub.get(ctx.code);
         if (!entry || !ctx.pid) throw new RoomError('not_joined', '部屋に入っていません');
         const out = handleAct({ room: entry.room, topics, clientId: ctx.clientId }, ctx.pid, msg);
         if (out.needConfirm) {
@@ -133,26 +80,19 @@ wss.on('connection', (ws) => {
           return;
         }
         if (out.closed) {
-          closeRoom(ctx.code, entry);
+          hub.closeRoom(ctx.code, entry);
           return;
         }
         if (out.leave) {
-          const set = entry.sockets.get(ctx.pid);
-          for (const s of set ?? []) {
-            send(s, { t: 'left' });
-            s.close();
-          }
-          entry.sockets.delete(ctx.pid);
-          broadcast(entry);
+          hub.leave(entry, ctx.pid);
           return;
         }
         if ('react' in out) {
-          if (out.react) for (const set of entry.sockets.values()) for (const w of set) send(w, { t: 'react', kind: out.react.kind });
+          if (out.react) hub.sendReact(entry, out.react.kind);
           return;
         }
-        const text = describe(entry.room, out.ev);
-        if (text) notifyAll(entry, text);
-        broadcast(entry);
+        hub.announce(entry, out.ev);
+        hub.broadcast(entry);
       }
     } catch (e) {
       fail(e);
@@ -160,16 +100,9 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    const entry = rooms.get(ctx.code);
+    const entry = hub.get(ctx.code);
     if (!entry || !ctx.pid) return;
-    const set = entry.sockets.get(ctx.pid);
-    if (!set) return;
-    set.delete(ws);
-    if (set.size === 0) {
-      entry.sockets.delete(ctx.pid);
-      entry.room.disconnect(ctx.pid);
-      broadcast(entry);
-    }
+    hub.detach(entry, ctx.pid, ws);
   });
 });
 
@@ -186,19 +119,6 @@ setInterval(() => {
 }, PING_MS);
 
 // 猶予を過ぎた主催者・出題者の引き継ぎと、空き部屋の終了
-setInterval(() => {
-  for (const [code, entry] of [...rooms]) {
-    const events = entry.room.tick();
-    if (entry.room.closed) {
-      closeRoom(code, entry);
-      continue;
-    }
-    for (const ev of events) {
-      const text = describe(entry.room, ev);
-      if (text) notifyAll(entry, text);
-    }
-    if (events.length > 0) broadcast(entry);
-  }
-}, TICK_MS);
+setInterval(() => hub.tick(), TICK_MS);
 
 server.listen(PORT, () => console.log(`朝それ: http://localhost:${PORT}`));
