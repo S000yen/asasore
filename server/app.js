@@ -9,12 +9,12 @@ import { createWebSocketServer, pingClients } from './socket.js';
 const TICK_MS = 1000;
 const PING_MS = 25000;
 
-// topics は TopicPool。publicDir・adminToken を省くと、本物の public/ と環境変数 ADMIN_TOKEN を使う。
-export function createApp({ topics, publicDir, adminToken, tickMs = TICK_MS, pingMs = PING_MS }) {
-  const build = computeBuild(publicDir);
+// topics は TopicPool。publicDir・sharedDir・adminToken を省くと、本物の public/・shared/ と環境変数 ADMIN_TOKEN を使う。
+export function createApp({ topics, publicDir, sharedDir, adminToken, tickMs = TICK_MS, pingMs = PING_MS }) {
+  const build = computeBuild(publicDir, sharedDir);
   const startedAt = Date.now();
   const hub = new Hub();
-  const server = http.createServer(createRequestHandler({ topics, rooms: hub.rooms, build, startedAt, publicDir, adminToken }));
+  const server = http.createServer(createRequestHandler({ topics, rooms: hub.rooms, build, startedAt, publicDir, sharedDir, adminToken }));
   const wss = createWebSocketServer({ server, hub, topics, build });
 
   const timers = [
