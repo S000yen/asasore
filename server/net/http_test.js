@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { computeBuild, createRequestHandler, PUBLIC_DIR } from './http.js';
-import { TopicPool } from './topics.js';
+import { TopicPool } from '../data/topics.js';
 
 // 一時フォルダに、小さな public/ と shared/ を作る。root/public・root/shared と、名前が前方一致する root/public2・root/shared2 と、外の root/secret.txt も置く。
 function makePublic(files = {}, sharedFiles = {}) {

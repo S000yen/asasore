@@ -25,9 +25,9 @@ import {
   normalizeOrder,
 } from './roles.js';
 import { EVENT } from './events.js';
-import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../shared/phases.js';
-import { ERR } from '../shared/protocol.js';
-import { MIN_PLAYERS, MAX_NAME_LEN, MAX_ANSWER_LEN, MAX_THEME_LEN, TIME_LIMIT_MIN, TIME_LIMIT_MAX, REACTIONS, PRESENTER_MODE, IDENTITY_MODE, CHOOSER_MODE, DEFAULT_SETTINGS } from '../shared/rules.js';
+import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../../shared/phases.js';
+import { ERR } from '../../shared/protocol.js';
+import { MIN_PLAYERS, MAX_NAME_LEN, MAX_ANSWER_LEN, MAX_THEME_LEN, TIME_LIMIT_MIN, TIME_LIMIT_MAX, REACTIONS, PRESENTER_MODE, IDENTITY_MODE, CHOOSER_MODE, DEFAULT_SETTINGS } from '../../shared/rules.js';
 
 const HIRAGANA = /^[\u3041-\u3093]$/;
 const DEFAULT_GRACE_MS = 3 * 60 * 1000; // 主催者・出題者が落ちてから引き継ぐまで

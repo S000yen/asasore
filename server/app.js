@@ -2,9 +2,9 @@
 // listen はしない（index.js が行う。テストは空きポートで起動する）。DB への接続（topics.attach）も、ここではしない。
 
 import http from 'node:http';
-import { computeBuild, createRequestHandler } from './http.js';
-import { Hub } from './hub.js';
-import { createWebSocketServer, pingClients } from './socket.js';
+import { computeBuild, createRequestHandler } from './net/http.js';
+import { Hub } from './net/hub.js';
+import { createWebSocketServer, pingClients } from './net/socket.js';
 
 const TICK_MS = 1000;
 const PING_MS = 25000;

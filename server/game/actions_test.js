@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleAct } from './actions.js';
 import { Room } from './room.js';
-import { TopicPool } from './topics.js';
+import { TopicPool } from '../data/topics.js';
 
 // n人入室した部屋。ids[0] が主催者。run(i, msg) で、i 番目の人としてアクションを送る。
 function setup(n = 3) {

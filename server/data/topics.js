@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { randomInt } from 'node:crypto';
 
-const seedPath = new URL('../seed/themes.json', import.meta.url);
+const seedPath = new URL('../../seed/themes.json', import.meta.url);
 
 // 使いやすい頭文字だけを、重み付きで抽選する（ん・を・小書き文字・濁音・半濁音は除く）。
 const ROWS = ['あいうえお', 'かきくけこ', 'さしすせそ', 'たちつてと', 'なにぬねの', 'はひふへほ', 'まみむめも', 'やゆよ', 'らりるれろ', 'わ'];

@@ -3,8 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { WebSocket } from 'ws';
 import { createApp } from './app.js';
-import { pingClients } from './socket.js';
-import { TopicPool } from './topics.js';
+import { pingClients } from './net/socket.js';
+import { TopicPool } from './data/topics.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function until(fn, ms = 2000) {

@@ -141,7 +141,7 @@ test('画面がエラーコードで動きを変えるもの（ERR）は、サ�
 });
 
 test('画面が送る操作の名前（act）は、すべてサーバーの操作の表にある', () => {
-  const server = read(path.join(ROOT, 'server/actions.js'));
+  const server = read(path.join(ROOT, 'server/game/actions.js'));
   const table = new Set([...server.matchAll(/^ {2}([A-Za-z]+): /gm)].map((m) => m[1]));
   assert.ok(table.size > 20, '操作の表が読み取れていません');
   const sent = new Set();
@@ -155,7 +155,7 @@ test('画面が送る操作の名前（act）は、すべてサーバーの操�
 // ---------- 規則（shared/rules.js） ----------
 
 const rules = await import(pathToFileURL(path.join(ROOT, 'shared/rules.js')).href);
-const { Room } = await import(pathToFileURL(path.join(ROOT, 'server/room.js')).href);
+const { Room } = await import(pathToFileURL(path.join(ROOT, 'server/game/room.js')).href);
 const { newRoom, resetState } = await import(pathToFileURL(path.join(ROOT, 'public/js/core/state.js')).href);
 const { MARKS } = await import(pathToFileURL(path.join(ROOT, 'public/js/lib/icons.js')).href);
 

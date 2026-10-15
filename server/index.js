@@ -1,7 +1,7 @@
 // 起動。お題の保存先（DB）をつなぎ、サーバーを組み立てて、待ち受けを始める。
 
-import { TopicPool } from './topics.js';
-import { createStoreFromEnv } from './store.js';
+import { TopicPool } from './data/topics.js';
+import { createStoreFromEnv } from './data/store.js';
 import { createApp } from './app.js';
 
 const PORT = Number(process.env.PORT ?? 3000);

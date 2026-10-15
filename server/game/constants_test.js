@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EVENT } from './events.js';
-import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../shared/phases.js';
+import { PHASE, BETWEEN_ROUNDS, SPECTATE_NOW_PHASES, ANSWERS_SHOWN_PHASES, GROUPING_PHASES } from '../../shared/phases.js';
 import { NOTICES } from './messages.js';
 
 // フェーズ名は通信（view.phase）に載り、画面側も同じ文字列で見ている。この値が変わったら、気づけるようにしておく。

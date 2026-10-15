@@ -8,9 +8,9 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { handleAdmin } from './admin.js';
+import { handleAdmin } from '../admin/admin.js';
 
-const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const PUBLIC_DIR = path.join(ROOT, 'public');
 export const SHARED_DIR = path.join(ROOT, 'shared');
 const SHARED_PREFIX = '/shared/';

@@ -17,7 +17,7 @@ syncBuiltinESMExports();
 let clock = 1_700_000_000_000;
 Date.now = () => clock;
 
-const { Room } = await import('../server/room.js');
+const { Room } = await import('../server/game/room.js');
 
 const views = {};     // 名前 -> ビュー
 const scenarios = []; // { name, fn, view, ui, drafts, state, newRoom, howto }
