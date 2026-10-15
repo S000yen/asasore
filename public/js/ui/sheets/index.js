@@ -7,13 +7,14 @@ import { badgeHost, badgeSpec } from '../../lib/icons.js';
 import { historySheet } from './history.js';
 import { menuSheet } from './menu.js';
 import { settingsSheet } from './settings.js';
+import { MAX_NAME_LEN } from '../../../../shared/rules.js';
 
 // 人を選ぶボタンの並び。対象がいなければ、その旨を出す。
 const pickButtons = (kind, list) => list.map((p) => `<button class="btn" data-do="pick" data-kind="${kind}" data-id="${esc(p.id)}">${escN(p.name, 24)}${p.spectator ? '（観戦中）' : ''}${p.connected === false ? '（離席中）' : ''}</button>`).join('') || '<p class="hint">対象の人がいません。</p>';
 
 const renameSheet = (v) => {
   return `<h3>表示名を変える</h3><div class="stack">
-      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="200" autocomplete="off" value="${esc(drafts.rename)}"></label>
+      <label class="field"><span>表示名</span><input id="renameInput" type="text" data-draft="rename" maxlength="${MAX_NAME_LEN}" autocomplete="off" value="${esc(drafts.rename)}"></label>
       <button class="btn primary block" data-do="doRename">変更する</button></div>`;
 };
 

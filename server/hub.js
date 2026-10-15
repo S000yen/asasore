@@ -7,9 +7,9 @@ import { randomInt } from 'node:crypto';
 import { Room } from './room.js';
 import { describe } from './messages.js';
 import { MSG } from '../shared/protocol.js';
+import { ROOM_CODE_LENGTH } from '../shared/rules.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 紛らわしい文字（I, O, 0, 1）を除く
-const CODE_LENGTH = 4;
 
 // 切れている接続には送らない
 export const send = (ws, msg) => {
@@ -28,7 +28,7 @@ export class Hub {
   newCode() {
     for (;;) {
       let code = '';
-      for (let i = 0; i < CODE_LENGTH; i++) code += CODE_CHARS[randomInt(CODE_CHARS.length)];
+      for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += CODE_CHARS[randomInt(CODE_CHARS.length)];
       if (!this.rooms.has(code)) return code;
     }
   }

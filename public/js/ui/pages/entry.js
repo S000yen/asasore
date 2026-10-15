@@ -4,6 +4,7 @@ import { drafts, newRoom, state, ui } from '../../core/state.js';
 import { esc } from '../../lib/format.js';
 import { ICON_DOOR, ICON_HAMMER } from '../../lib/icons.js';
 import { timeSliderHtml, toastHtml } from '../components/parts.js';
+import { ROOM_CODE_LENGTH, PRESENTER_MODE, IDENTITY_MODE, CHOOSER_MODE } from '../../../../shared/rules.js';
 
 export function entryHtml() {
   if (state.endMessage) return endHtml();
@@ -19,15 +20,15 @@ export function entryHtml() {
   const createDialog = ui.createOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeCreate" aria-label="閉じる">×</button>
       <h3>部屋をつくる</h3>
       <div class="stack">
-        <h2>出題者</h2>${seg('presenterMode', [['host', '主催者'], ['rotation', '順番']])}
-        <h2>回答の見せ方</h2>${seg('identityMode', [['named', '記名'], ['anonymous', '匿名']])}
-        <h2>正解を選ぶ人</h2>${seg('chooserMode', [['all', '全員'], ['one', '一人']])}
+        <h2>出題者</h2>${seg('presenterMode', [[PRESENTER_MODE.HOST, '主催者'], [PRESENTER_MODE.ROTATION, '順番']])}
+        <h2>回答の見せ方</h2>${seg('identityMode', [[IDENTITY_MODE.NAMED, '記名'], [IDENTITY_MODE.ANONYMOUS, '匿名']])}
+        <h2>正解を選ぶ人</h2>${seg('chooserMode', [[CHOOSER_MODE.ALL, '全員'], [CHOOSER_MODE.ONE, '一人']])}
         ${timeSliderHtml(newRoom.timeLimit, 'create')}
       </div>
       <div class="dialog-actions"><button class="btn primary go" data-do="create">作成</button></div>
     </div></div>` : '';
   const dialog = ui.joinOpen && !ui.joining ? `<div class="scrim dialog" data-do="noop"><div class="sheet"><button class="x" data-do="closeJoin" aria-label="閉じる">×</button>
-      <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
+      <label class="field"><span>部屋コード</span><input id="codeInput" type="text" data-draft="code" maxlength="${ROOM_CODE_LENGTH}" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" value="${esc(drafts.code)}"></label>
       <div class="seg join-seg">${[[false, '参戦'], [true, '観戦']].map(([val, label]) => `<button class="btn small ${ui.joinWatch === val ? 'on' : ''}" data-do="setJoinWatch" data-val="${val}">${label}</button>`).join('')}</div>
       <button class="btn primary block" style="margin-top:16px" data-do="join">入る</button>
     </div></div>` : '';

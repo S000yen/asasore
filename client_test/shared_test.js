@@ -151,3 +151,81 @@ test('画面が送る操作の名前（act）は、すべてサーバーの操�
   const missing = [...sent].filter((n) => !table.has(n));
   assert.deepEqual(missing, [], `サーバーにない操作を送っています: ${missing.join(', ')}`);
 });
+
+// ---------- 規則（shared/rules.js） ----------
+
+const rules = await import(pathToFileURL(path.join(ROOT, 'shared/rules.js')).href);
+const { Room } = await import(pathToFileURL(path.join(ROOT, 'server/room.js')).href);
+const { newRoom, resetState } = await import(pathToFileURL(path.join(ROOT, 'public/js/core/state.js')).href);
+const { MARKS } = await import(pathToFileURL(path.join(ROOT, 'public/js/lib/icons.js')).href);
+
+test('規則の値は、これまでと同じ（直書きで固定。入力欄の上限や、遊べる人数が、知らないうちに変わらないように）', () => {
+  assert.equal(rules.MIN_PLAYERS, 3);
+  assert.equal(rules.ROOM_CODE_LENGTH, 4);
+  assert.deepEqual([rules.MAX_NAME_LEN, rules.MAX_ANSWER_LEN, rules.MAX_THEME_LEN], [200, 100, 40]);
+  assert.deepEqual([rules.TIME_LIMIT_MIN, rules.TIME_LIMIT_MAX], [5, 180]);
+  assert.deepEqual([...rules.REACTIONS], ['like', 'bad', 'cheer', 'laugh']);
+  assert.deepEqual({ ...rules.PRESENTER_MODE }, { HOST: 'host', ROTATION: 'rotation' });
+  assert.deepEqual({ ...rules.IDENTITY_MODE }, { NAMED: 'named', ANONYMOUS: 'anonymous' });
+  assert.deepEqual({ ...rules.CHOOSER_MODE }, { ALL: 'all', ONE: 'one' });
+  assert.deepEqual({ ...rules.DEFAULT_SETTINGS }, { presenterMode: 'host', identityMode: 'named', chooserMode: 'all', timeLimit: 0 });
+  for (const v of [rules.REACTIONS, rules.DEFAULT_SETTINGS, rules.PRESENTER_MODE, rules.IDENTITY_MODE, rules.CHOOSER_MODE]) assert.ok(Object.isFrozen(v));
+});
+
+test('部屋設定の既定値は、サーバーと画面（部屋をつくるときの選択）で、shared/ の DEFAULT_SETTINGS と同じ', () => {
+  assert.deepEqual(new Room('T').settings, { ...rules.DEFAULT_SETTINGS, order: [] });
+  resetState();
+  assert.deepEqual({ ...newRoom }, { ...rules.DEFAULT_SETTINGS });
+});
+
+test('サーバーは、設定の選択肢と制限時間の範囲を、shared/ の規則どおりに受け付ける', () => {
+  const room = new Room('T');
+  const host = room.join(null, 'ホスト').id;
+  const ok = (patch) => room.setSettings(host, patch);
+  const bad = (patch) => assert.throws(() => room.setSettings(host, patch), (e) => e.code === 'bad_setting', JSON.stringify(patch));
+  for (const [key, options] of [['presenterMode', rules.PRESENTER_MODE], ['identityMode', rules.IDENTITY_MODE], ['chooserMode', rules.CHOOSER_MODE]]) {
+    for (const value of Object.values(options)) ok({ [key]: value });
+    bad({ [key]: 'bogus' });
+  }
+  for (const n of [0, rules.TIME_LIMIT_MIN, rules.TIME_LIMIT_MAX, 30]) ok({ timeLimit: n });
+  for (const n of [rules.TIME_LIMIT_MIN - 1, rules.TIME_LIMIT_MAX + 1, -1, 1.5]) bad({ timeLimit: n });
+});
+
+test('サーバーは、最低人数と入力の上限を、shared/ の規則どおりに適用する', () => {
+  const room = new Room('T');
+  const a = room.join(null, 'A').id;
+  const b = room.join(null, 'B').id;
+  assert.throws(() => room.startRound(a), (e) => e.code === 'min_players' && e.message.includes(`${rules.MIN_PLAYERS}人以上`));
+  assert.equal(room.viewFor(a).me.name.length <= rules.MAX_NAME_LEN, true);
+  const long = room.join(null, 'あ'.repeat(rules.MAX_NAME_LEN + 50)).id;
+  assert.equal(room.viewFor(long).me.name.length, rules.MAX_NAME_LEN); // 入室のときに、上限で切られる
+  assert.throws(() => room.rename(long, 'い'.repeat(rules.MAX_NAME_LEN + 1)), (e) => e.code === 'bad_name');
+  room.startRound(a);
+  assert.throws(() => room.setTopic(a, { hiragana: 'あ', theme: 'x'.repeat(rules.MAX_THEME_LEN + 1) }), (e) => e.code === 'bad_topic');
+  room.setTopic(a, { hiragana: 'あ', theme: 'x'.repeat(rules.MAX_THEME_LEN) });
+  room.confirmTopic(a);
+  assert.throws(() => room.submitAnswer(a, 'y'.repeat(rules.MAX_ANSWER_LEN + 1)), (e) => e.code === 'bad_answer');
+  room.submitAnswer(a, 'y'.repeat(rules.MAX_ANSWER_LEN));
+  room.submitAnswer(b, 'z');
+  room.submitAnswer(long, 'z');
+  room.advance(a, { force: true }); // 開示へ（反応マークは、開示のあいだだけ使える）
+  for (const kind of rules.REACTIONS) room.react(a, kind); // 連打の制限で null が返ることはあるが、エラーにはならない
+  assert.throws(() => room.react(a, 'unknown'), (e) => e.code === 'bad_reaction');
+});
+
+test('反応マークの絵文字（画面の MARKS）は、shared/ の REACTIONS と同じ種類', () => {
+  assert.deepEqual(Object.keys(MARKS).sort(), [...rules.REACTIONS].sort());
+});
+
+test('設定の値や、人数・文字数の直書きは、shared/ の外に残っていない', () => {
+  const SETTING_LITERAL = /'(host|rotation|named|anonymous|all|one)'/;
+  const NUMBER_LITERALS = [/\bn < 3\b/, /\{4\}\$/, /maxlength="(4|40|100|200)"/, /\bcode\.length < 4\b/]; // {4}$ は、部屋コードの正規表現（どの書き方でも）
+  const code = (line) => line.replace(/\s\/\/\s.*$/, ''); // 行末のコメントは、見ない
+  for (const f of [...clientFiles, ...serverFiles]) {
+    stripComments(read(f)).split('\n').forEach((raw, i) => {
+      const line = code(raw);
+      if (SETTING_LITERAL.test(line)) assert.fail(`${rel(f)} の ${i + 1} 行付近に、設定の値の直書きが残っています: ${line.trim().slice(0, 100)}`);
+      for (const re of NUMBER_LITERALS) if (re.test(line)) assert.fail(`${rel(f)} の ${i + 1} 行付近に、数字の直書きが残っています: ${line.trim().slice(0, 100)}`);
+    });
+  }
+});

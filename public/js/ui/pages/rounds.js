@@ -6,6 +6,7 @@ import { esc, escN, sizeOf } from '../../lib/format.js';
 import { ICON_REDRAW, ICON_TRASH } from '../../lib/icons.js';
 import { progress, reactBarHtml, telop, timerHtml } from '../components/parts.js';
 import { groupBarHtml, groupMark, groupToggleHtml, poolHtml } from '../components/pool.js';
+import { MAX_ANSWER_LEN, MAX_THEME_LEN, CHOOSER_MODE } from '../../../../shared/rules.js';
 
 export function topicHtml() {
   const v = state.view;
@@ -17,7 +18,7 @@ export function topicHtml() {
   return `
     <div class="telop edit">
       <div class="tile"><input id="hiraInput" class="tile-input" type="text" data-draft="hiragana" maxlength="1" placeholder="？" aria-label="頭文字" autocomplete="off" value="${esc(drafts.hiragana)}"></div>
-      <div class="telop-text"><span class="tiny">で始まる</span><textarea id="themeInput" class="theme-edit" rows="1" data-draft="theme" maxlength="40" placeholder="題材" aria-label="題材">${esc(drafts.theme)}</textarea><span class="tiny">といえば？</span></div>
+      <div class="telop-text"><span class="tiny">で始まる</span><textarea id="themeInput" class="theme-edit" rows="1" data-draft="theme" maxlength="${MAX_THEME_LEN}" placeholder="題材" aria-label="題材">${esc(drafts.theme)}</textarea><span class="tiny">といえば？</span></div>
     </div>
     <div class="redraw-row">
       <div class="redraws">
@@ -33,7 +34,7 @@ export function answerHtml() {
   const v = state.view;
   const box = v.me.spectator ? '' : `
     <div class="answerbox">
-      <textarea id="answerInput" data-draft="answer" rows="3" maxlength="100" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
+      <textarea id="answerInput" data-draft="answer" rows="3" maxlength="${MAX_ANSWER_LEN}" placeholder="答えを入力" ${v.myAnswer !== null ? 'readonly' : ''}>${esc(drafts.answer)}</textarea>
       <div class="box-actions">${v.myAnswer !== null ? '<button class="btn small" data-do="withdraw">取り下げる</button>' : '<button class="btn primary small" data-do="submitAnswer">回答する</button>'}</div>
     </div>`;
   return `
@@ -53,7 +54,7 @@ export function revealHtml() {
 }
 
 export function voteHtml() {
-  const v = state.view, one = v.settings.chooserMode === 'one';
+  const v = state.view, one = v.settings.chooserMode === CHOOSER_MODE.ONE;
   return `
     ${telop(v.topic)}
     <div class="listhead"><h2>${one ? (v.me.isChooser ? '正解を選んでください' : '正解を選んでいます') : '正解だと思う回答に投票'}</h2>${groupToggleHtml()}</div>
@@ -71,7 +72,7 @@ export function resultHtml() {
     return `<div class="cell ${won ? 'win' : 'open'}${wide}">
       ${t.group ? `<span class="gtag in" aria-label="同じ回答 ${groupMark(t.group)}">${groupMark(t.group)}</span>` : ''}
       ${won ? '<span class="stamp">正解</span>' : ''}
-      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${escN(t.author, 12)}</span></span>${r.mode === 'one' ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
+      <span class="txt"><span class="text ${won ? 'lg' : sizeOf(t.text)}">${esc(t.text)}</span><span class="by">${escN(t.author, 12)}</span></span>${r.mode === CHOOSER_MODE.ONE ? '' : `<span class="vcount">${t.votes}<small>票</small></span>`}</div>`;
   }).join('');
   return `
     ${telop(v.topic)}

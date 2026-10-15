@@ -4,6 +4,7 @@ import { isEditing, state } from '../../core/state.js';
 import { esc } from '../../lib/format.js';
 import { ICON_SEND } from '../../lib/icons.js';
 import { PHASE } from '../../../../shared/phases.js';
+import { MIN_PLAYERS, CHOOSER_MODE } from '../../../../shared/rules.js';
 
 export function actionBar() {
   const v = state.view, host = v.me.isHost;
@@ -13,8 +14,8 @@ export function actionBar() {
     case PHASE.LOBBY:
       if (host) {
         const n = v.players.filter((p) => p.connected && !p.spectator).length;
-        btn = `<button class="btn primary block" data-do="advance" ${n < 3 ? 'disabled' : ''}>はじめる</button>`;
-        meta = n < 3 ? '3人以上で始められます' : '';
+        btn = `<button class="btn primary block" data-do="advance" ${n < MIN_PLAYERS ? 'disabled' : ''}>はじめる</button>`;
+        meta = n < MIN_PLAYERS ? `${MIN_PLAYERS}人以上で始められます` : '';
       }
       break;
     case PHASE.TOPIC:
@@ -31,8 +32,8 @@ export function actionBar() {
       }
       break;
     case PHASE.VOTE:
-      if (v.settings.chooserMode === 'one' ? v.me.isChooser : host) {
-        btn = `<button class="btn primary block" data-do="advance" ${(v.pendingCount > 0 && v.settings.chooserMode === 'one') || lock ? 'disabled' : ''}>結果を見る</button>`;
+      if (v.settings.chooserMode === CHOOSER_MODE.ONE ? v.me.isChooser : host) {
+        btn = `<button class="btn primary block" data-do="advance" ${(v.pendingCount > 0 && v.settings.chooserMode === CHOOSER_MODE.ONE) || lock ? 'disabled' : ''}>結果を見る</button>`;
         if (lock) meta = 'まとめの編集中は進めません';
       }
       break;
@@ -48,7 +49,7 @@ export function actionBar() {
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">出題者 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;
     who = can ? `<button class="who" data-do="sheet" data-kind="presenter">${inner}</button>` : `<div class="who">${inner}</div>`;
   }
-  if (v.phase === PHASE.VOTE && v.settings.chooserMode === 'one') {
+  if (v.phase === PHASE.VOTE && v.settings.chooserMode === CHOOSER_MODE.ONE) {
     const name = v.players.find((p) => p.id === v.chooserId)?.name ?? '';
     const can = v.me.canAssignChooser;
     const inner = `<span class="av">${esc([...name][0] ?? '?')}</span><span class="who-text">選ぶ人 <b>${esc(name)}</b></span>${can ? `<span class="who-edit">${ICON_SEND}変更</span>` : ''}`;

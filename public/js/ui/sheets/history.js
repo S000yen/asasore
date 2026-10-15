@@ -1,6 +1,7 @@
 // これまでの記録（正解数と得票率のグラフ、ラウンドごとの結果）。
 
 import { esc, escN } from '../../lib/format.js';
+import { CHOOSER_MODE } from '../../../../shared/rules.js';
 
 export const historySheet = (v) => {
   const tot = new Map();
@@ -12,7 +13,7 @@ export const historySheet = (v) => {
   const rate = new Map();
   let rounds = 0;
   for (const h of v.history) {
-    if (h.mode === 'one' || !h.total) continue;
+    if (h.mode === CHOOSER_MODE.ONE || !h.total) continue;
     rounds += 1;
     for (const e of h.entries) { const t = rate.get(e.author) ?? { got: 0, all: 0 }; t.got += e.votes; t.all += h.total; rate.set(e.author, t); }
   }
@@ -23,6 +24,6 @@ export const historySheet = (v) => {
   return `<h3>これまでの記録</h3>${graph}${rateGraph}<div class="history">${v.history.map((h) => `
       <article class="rec">
         <div class="rec-head"><span class="rec-no">第${h.round}問</span><span class="rec-topic"><b>${esc(h.topic.hiragana)}</b>で始まる ${esc(h.topic.theme)}</span></div>
-        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${escN(e.author, 12)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === 'one' ? '' : `${e.votes}票`}</span></div>`).join('')}
+        ${h.entries.map((e) => `<div class="rec-row ${e.won ? 'won' : ''}"><span class="rec-text">${esc(e.text)}<small>${escN(e.author, 12)}</small></span><span class="rec-votes">${e.won ? '<i>正解</i>' : ''}${h.mode === CHOOSER_MODE.ONE ? '' : `${e.votes}票`}</span></div>`).join('')}
       </article>`).join('')}</div>`;
 };

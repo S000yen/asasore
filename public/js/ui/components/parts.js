@@ -3,6 +3,7 @@
 import { isEditing, state, ui } from '../../core/state.js';
 import { esc, escN } from '../../lib/format.js';
 import { MARKS, badgeHost } from '../../lib/icons.js';
+import { TIME_LIMIT_MIN, TIME_LIMIT_MAX } from '../../../../shared/rules.js';
 
 const chips = (list, mark) => `<div class="chips">${list.map((p) =>
   `<span class="chip ${p.connected ? '' : 'away'}${p.id === state.view?.me.id ? ' me' : ''}">${p.isHost ? badgeHost : ''}${escN(p.name, 12)}${mark && mark(p) ? '<span class="mark">✓</span>' : ''}${p.connected ? '' : '<span class="tag">離席中</span>'}</span>`).join('')}</div>`;
@@ -29,8 +30,8 @@ export const timerHtml = () => {
 };
 
 // 回答の制限時間：5〜180秒のバー。いちばん右が「なし」。目盛りをタップすると、その時間になる。
-const TS_MIN = 5, TS_MAX = 180, TS_NONE = TS_MAX + 25; // 右端の「なし」は、180秒の目盛りと重ならないよう、少し離しておく
-const TS_TICKS = [5, 30, 60, 90, 120, 150, 180, 0];
+const TS_MIN = TIME_LIMIT_MIN, TS_MAX = TIME_LIMIT_MAX, TS_NONE = TS_MAX + 25; // 右端の「なし」は、180秒の目盛りと重ならないよう、少し離しておく
+const TS_TICKS = [TS_MIN, 30, 60, 90, 120, 150, TS_MAX, 0];
 const tsPos = (v) => (Number(v) === 0 ? TS_NONE : Number(v));
 export const tsLabel = (v) => (Number(v) === 0 ? 'なし' : `${v}秒`);
 export function timeSliderHtml(value, ctx, disabled = false) {

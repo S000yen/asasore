@@ -2,6 +2,7 @@
 // 読み込んだだけでは、localStorage や DOM には触らない（起動時に main.js が初期値を入れる）。
 
 import { GROUPING_PHASES } from '../../../shared/phases.js';
+import { DEFAULT_SETTINGS } from '../../../shared/rules.js';
 
 const initialState = () => ({
   view: null, // サーバーから届いた自分用の状態
@@ -15,7 +16,7 @@ const initialState = () => ({
 });
 const initialUi = () => ({ joinWatch: false, editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null });
 const initialDrafts = () => ({ code: '', rename: '', answer: '', hiragana: '', theme: '' });
-const initialNewRoom = () => ({ presenterMode: 'host', identityMode: 'named', chooserMode: 'all', timeLimit: 0 });
+const initialNewRoom = () => ({ ...DEFAULT_SETTINGS });
 
 export const state = initialState();
 export const ui = initialUi();

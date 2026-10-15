@@ -7,6 +7,7 @@ import { act, settleCritical } from './connection.js';
 import { saveName, saveSession } from './storage.js';
 import { PHASE } from '../../../shared/phases.js';
 import { ERR, MSG } from '../../../shared/protocol.js';
+import { CHOOSER_MODE } from '../../../shared/rules.js';
 
 let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
 
@@ -100,7 +101,7 @@ function confirmFor(m) {
   let body;
   if (m.phase === PHASE.ANSWER) body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
   else if (m.phase === PHASE.REVEAL) body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
-  else if (state.view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
+  else if (state.view.settings.chooserMode === CHOOSER_MODE.ONE) body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
   else body = `まだ${p.count}人が未投票です（${p.names.join('、')}）。このまま結果を出しますか？`;
   return { body, ok: '進める', onOk: () => act('advance', { force: true }) };
 }

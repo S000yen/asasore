@@ -4,6 +4,7 @@
 import { state } from '../core/state.js';
 import { prefersReducedMotion } from './ambient.js';
 import { MARKS } from '../lib/icons.js';
+import { CHOOSER_MODE } from '../../../shared/rules.js';
 
 // 結果の発表：画面の下の左右から、クラッカーのように紙吹雪が飛び出す。#app の外の canvas に描く（描画のたびに消されないように）。
 export function confetti() {
@@ -81,7 +82,7 @@ export function startBand() {
   const el = document.createElement('div');
   el.className = 'startband';
   el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = `<span>${state.view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
+  el.innerHTML = `<span>${state.view.settings.chooserMode === CHOOSER_MODE.ONE ? '正解を選べ' : '投票スタート'}</span>`;
   document.body.append(el);
   setTimeout(() => el.remove(), 1700);
 }

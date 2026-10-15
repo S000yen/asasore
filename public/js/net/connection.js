@@ -4,6 +4,7 @@ import { requestRender, toast } from '../core/hooks.js';
 import { state, ui } from '../core/state.js';
 import { clientId } from './storage.js';
 import { MSG } from '../../../shared/protocol.js';
+import { ROOM_CODE_LENGTH } from '../../../shared/rules.js';
 
 let ws = null;
 let backoff = 500;
@@ -12,7 +13,7 @@ let backoff = 500;
 let pendingLink = null;
 const readPendingLink = () => {
   const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
-  return /^[A-Z0-9]{4}$/.test(c) ? c : null;
+  return new RegExp(`^[A-Z0-9]{${ROOM_CODE_LENGTH}}$`).test(c) ? c : null;
 };
 
 // サーバーから届いたメッセージの処理（messages.js の onMessage）。起動時に main.js が登録する。

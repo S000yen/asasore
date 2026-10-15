@@ -2,12 +2,13 @@
 
 import { canEditGroups, isEditing, state, ui } from '../../core/state.js';
 import { esc, escN, sizeOf } from '../../lib/format.js';
+import { IDENTITY_MODE } from '../../../../shared/rules.js';
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。
 // 主催者が「同じ回答」としてまとめたものには、同じ記号（A、B…）の札が付く。チェックは、まとめる／ばらす対象の選択。
 export const groupMark = (n) => String.fromCharCode(64 + n);
 export function poolHtml() {
-  const v = state.view, anon = v.settings.identityMode === 'anonymous';
+  const v = state.view, anon = v.settings.identityMode === IDENTITY_MODE.ANONYMOUS;
   const editing = isEditing();
   const myGroup = v.myVote ? v.pool.find((x) => x.answerId === v.myVote)?.group ?? null : null;
   const cells = v.pool.map((c) => {

@@ -9,6 +9,7 @@ import { modalHtml, toastHtml } from '../components/parts.js';
 import { answerHtml, resultHtml, revealHtml, topicHtml, voteHtml } from './rounds.js';
 import { sheetHtml } from '../sheets/index.js';
 import { PHASE } from '../../../../shared/phases.js';
+import { CHOOSER_MODE } from '../../../../shared/rules.js';
 
 export function roomHtml() {
   const v = state.view;
@@ -22,7 +23,7 @@ export function roomHtml() {
       </div>
     </header>
     ${ui.connected ? '' : '<p class="conn">再接続しています。</p>'}
-    ${v.phase === PHASE.VOTE ? `<div class="phaseband">${v.settings.chooserMode === 'one' ? '選択中' : '投票中'}</div>` : ''}
+    ${v.phase === PHASE.VOTE ? `<div class="phaseband">${v.settings.chooserMode === CHOOSER_MODE.ONE ? '選択中' : '投票中'}</div>` : ''}
     <main class="main">${phaseHtml()}</main>
     ${actionBar()}
     ${sheetHtml()}${modalHtml()}${toastHtml()}`;

@@ -7,6 +7,7 @@ import { act, sendCritical, sendJoin } from '../net/connection.js';
 import { clientId, saveName } from '../net/storage.js';
 import { PHASE, SPECTATE_NOW_PHASES } from '../../../shared/phases.js';
 import { MSG } from '../../../shared/protocol.js';
+import { ROOM_CODE_LENGTH, CHOOSER_MODE } from '../../../shared/rules.js';
 
 function confirmPick(kind, id) {
   const name = state.view.players.find((p) => p.id === id)?.name ?? state.view.removed.find((p) => p.id === id)?.name ?? '';
@@ -46,7 +47,7 @@ export const handlers = {
   closeJoin() { ui.joinOpen = false; render(); },
   join() {
     const code = drafts.code.trim().toUpperCase();
-    if (code.length < 4) return toast('部屋コードを4文字で入力してください');
+    if (code.length < ROOM_CODE_LENGTH) return toast(`部屋コードを${ROOM_CODE_LENGTH}文字で入力してください`);
     state.autoJoin = true;
     if (sendJoin(code, ui.joinWatch)) { ui.joining = true; render(); }
   },
@@ -152,7 +153,7 @@ export const handlers = {
     if (state.view.myVote === d.id) return;
     const c = state.view.pool.find((x) => x.answerId === d.id);
     if (!c) return;
-    const one = state.view.settings.chooserMode === 'one';
+    const one = state.view.settings.chooserMode === CHOOSER_MODE.ONE;
     ui.modal = { quote: c.text, ok: one ? (state.view.myVote ? '正解を変更' : '正解にする') : (state.view.myVote ? '投票を変更' : '投票する'), onOk: () => act(one ? 'choose' : 'vote', { answerId: d.id }) };
     render();
   },
