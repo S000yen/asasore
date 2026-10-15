@@ -2,7 +2,7 @@
 // 遊び方（howto.md）の簡単な変換（見出しと箇条書きと太字だけ）。
 
 // 長い名前は、真ん中を「…」にして、最後の少し（同名のときの番号など）を残す
-const short = (name, max = 12) => {
+const short = (name, max) => {
   const cs = [...String(name ?? '')];
   if (cs.length <= max) return cs.join('');
   const tail = 3;
