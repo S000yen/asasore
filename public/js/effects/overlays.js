@@ -1,6 +1,9 @@
-// 結果発表の紙吹雪。
+// 画面にかぶせる演出：結果の紙吹雪、反応マーク、投票開始の帯、時間切れの爆弾。
+// どれも #app の外に出すので、描画のたびに消えない。
 
-import { prefersReducedMotion } from '../lib/motion.js';
+import { state } from '../core/state.js';
+import { prefersReducedMotion } from './ambient.js';
+import { MARKS } from '../lib/icons.js';
 
 // 結果の発表：画面の下の左右から、クラッカーのように紙吹雪が飛び出す。#app の外の canvas に描く（描画のたびに消されないように）。
 export function confetti() {
@@ -52,4 +55,46 @@ export function confetti() {
     if (alive) requestAnimationFrame(step); else cv.remove();
   };
   requestAnimationFrame(step);
+}
+
+// 反応マーク：画面の下から、ふわっと浮かび上がる。#app の外に出す（描画のたびに消えないように）。
+export function floatMark(kind) {
+  const mark = MARKS[kind];
+  if (!mark) return;
+  let box = document.querySelector('.floaters');
+  if (!box) { box = document.createElement('div'); box.className = 'floaters'; box.setAttribute('aria-hidden', 'true'); document.body.append(box); }
+  if (box.childElementCount > 60) box.firstElementChild.remove();
+  const el = document.createElement('span');
+  el.className = 'float';
+  el.textContent = mark;
+  el.style.left = `${8 + Math.random() * 84}%`;
+  el.style.setProperty('--sway', `${Math.round((Math.random() - 0.5) * 80)}px`);
+  el.style.setProperty('--rise', `${55 + Math.round(Math.random() * 25)}vh`);
+  el.style.fontSize = `${28 + Math.round(Math.random() * 14)}px`;
+  el.addEventListener('animationend', () => el.remove());
+  box.append(el);
+}
+
+// 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
+export function startBand() {
+  document.querySelector('.startband')?.remove();
+  const el = document.createElement('div');
+  el.className = 'startband';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<span>${state.view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
+// 時間切れで、未回答の人がいたまま進んだとき：爆弾が爆発する
+export function bomb() {
+  document.querySelector('.bomb')?.remove();
+  const el = document.createElement('div');
+  el.className = 'bomb';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = '<div class="flash"></div><div class="boom">💥</div><div class="boomtext">時間切れ！</div>';
+  document.body.append(el);
+  document.body.classList.add('shake');
+  setTimeout(() => document.body.classList.remove('shake'), 700);
+  setTimeout(() => el.remove(), 2100);
 }

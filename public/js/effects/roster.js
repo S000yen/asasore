@@ -1,9 +1,9 @@
 // ロビーの参加者：床で跳ね続ける名前の札と、タップで横から飛ぶ弾。
 
 import { state } from '../core/state.js';
+import { prefersReducedMotion } from './ambient.js';
 import { esc, escN } from '../lib/format.js';
 import { badgeHost, badgeSpec } from '../lib/icons.js';
-import { prefersReducedMotion } from '../lib/motion.js';
 
 let reduceMotion = false; // 動きを減らす設定のとき、動かさない（startRosterLoop で決める）
 

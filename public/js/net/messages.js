@@ -1,9 +1,8 @@
 // サーバーから届くメッセージの処理。
 
-import { requestRender } from '../core/hooks.js';
+import { requestRender, toast } from '../core/hooks.js';
 import { drafts, state, ui } from '../core/state.js';
-import { toast } from '../core/toast.js';
-import { floatMark } from '../effects/floatMark.js';
+import { floatMark } from '../effects/overlays.js';
 import { act, settleCritical } from './connection.js';
 import { saveName, saveSession } from './storage.js';
 

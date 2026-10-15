@@ -1,4 +1,4 @@
-// 画面が共有する状態：サーバーから届いた自分用のビューと、画面だけの状態（シート・入力中の内容など）。
+// 画面が共有する状態（サーバーから届いた自分用のビューと、画面だけの状態）と、そこから決まる画面の判断。
 // 読み込んだだけでは、localStorage や DOM には触らない（起動時に main.js が初期値を入れる）。
 
 const initialState = () => ({
@@ -27,3 +27,7 @@ export function resetState() {
   Object.assign(drafts, initialDrafts());
   Object.assign(newRoom, initialNewRoom());
 }
+
+// 主催者の「まとめを編集」中か。編集中は、完了するまで他の操作ができない。
+export const canEditGroups = () => Boolean(state.view?.me.isHost && ['reveal', 'vote'].includes(state.view.phase) && state.view.pool.filter((c) => c.revealed).length >= 2);
+export const isEditing = () => ui.editing && canEditGroups();

@@ -14,7 +14,7 @@ const load = (rel) => import(pathToFileURL(path.join(ROOT, 'public', 'js', rel))
 const { state, ui, drafts, newRoom, resetState } = await load('core/state.js');
 const { entryHtml } = await load('ui/pages/entry.js');
 const { roomHtml } = await load('ui/pages/room.js');
-const { mdToHtml } = await load('lib/markdown.js');
+const { mdToHtml } = await load('lib/format.js');
 const { resetRoster } = await load('effects/roster.js');
 
 const FUNCTIONS = { entryHtml, roomHtml };

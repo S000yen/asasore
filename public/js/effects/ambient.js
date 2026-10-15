@@ -1,6 +1,9 @@
-// お題を待つあいだの、跳ね返り続けるロゴ。
+// 背景の動き：お題を待つあいだのロゴと、回答待ちの時計。動きを減らす設定の判定も、ここに置く。
 
-import { prefersReducedMotion } from '../lib/motion.js';
+import { state } from '../core/state.js';
+import { timerInfo } from '../ui/components/parts.js';
+
+export const prefersReducedMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 
 let reduceMotion = false; // 動きを減らす設定のとき、動かさない（startBounceLoop で決める）
 
@@ -29,4 +32,18 @@ function bounceLoop(t) {
 export function startBounceLoop() {
   reduceMotion = prefersReducedMotion();
   requestAnimationFrame(bounceLoop);
+}
+
+// 時計を 250ms ごとに書き換える（起動時に1回）
+export function startTimerTicker() {
+  setInterval(() => {
+    const el = document.getElementById('timer');
+    if (!el || state.view?.phase !== 'answer') return;
+    const t = timerInfo();
+    const tx = document.getElementById('timerText');
+    if (tx && tx.textContent !== t.text) tx.textContent = t.text;
+    el.classList.toggle('low', t.low);
+    const ic = el.querySelector('.ticon');
+    if (ic && t.limit) ic.textContent = t.low ? '💣' : '⏳';
+  }, 250);
 }

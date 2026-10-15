@@ -1,7 +1,7 @@
 // 部屋設定（出題者・回答の見せ方・正解を選ぶ人・制限時間、順番）。
 
 import { esc } from '../../lib/format.js';
-import { timeSliderHtml } from '../components/timeSlider.js';
+import { timeSliderHtml } from '../components/parts.js';
 
 export const settingsSheet = (v) => {
   const s = v.settings, locked = !['lobby', 'result'].includes(v.phase);

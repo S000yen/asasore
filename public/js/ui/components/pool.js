@@ -1,7 +1,6 @@
 // 回答のプール（マスの並び）と、同じ回答をまとめる操作。
 
-import { canEditGroups, isEditing } from '../../core/selectors.js';
-import { state, ui } from '../../core/state.js';
+import { canEditGroups, isEditing, state, ui } from '../../core/state.js';
 import { esc, escN, sizeOf } from '../../lib/format.js';
 
 // 回答のプール：全部の回答が、位置を変えずに並ぶ。未開示は黒マス、開示されたものだけ中身が見える。

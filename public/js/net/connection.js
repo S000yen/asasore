@@ -1,8 +1,7 @@
 // サーバーとの接続（WebSocket）：接続と再接続、送信、入室の送信、返事がないときの再送。
 
-import { requestRender } from '../core/hooks.js';
+import { requestRender, toast } from '../core/hooks.js';
 import { state, ui } from '../core/state.js';
-import { toast } from '../core/toast.js';
 import { clientId } from './storage.js';
 
 let ws = null;

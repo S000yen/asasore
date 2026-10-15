@@ -2,16 +2,14 @@
 // HTML は ui/、状態は core/、通信は net/、描画は app/render.js、動きは effects/ に分けてある。
 
 import { endComposition, fitTheme, render, startComposition } from './render.js';
-import { setRenderer } from '../core/hooks.js';
+import { setRenderer, toast } from '../core/hooks.js';
 import { drafts, newRoom, state, ui } from '../core/state.js';
-import { toast } from '../core/toast.js';
-import { startBounceLoop } from '../effects/bounce.js';
+import { startBounceLoop, startTimerTicker } from '../effects/ambient.js';
 import { startRosterLoop } from '../effects/roster.js';
-import { startTimerTicker } from '../effects/timerTicker.js';
 import { act, sendCritical, sendJoin, setMessageHandler, startConnection } from '../net/connection.js';
 import { onMessage } from '../net/messages.js';
 import { clientId, loadName, loadSession, saveName } from '../net/storage.js';
-import { sliderVal, tsLabel } from '../ui/components/timeSlider.js';
+import { sliderVal, tsLabel } from '../ui/components/parts.js';
 
 const $app = document.getElementById('app');
 state.session = loadSession();

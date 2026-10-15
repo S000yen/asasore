@@ -1,7 +1,6 @@
 // 画面の下に固定する、主操作と、出題者・選ぶ人のチップ。
 
-import { isEditing } from '../../core/selectors.js';
-import { state } from '../../core/state.js';
+import { isEditing, state } from '../../core/state.js';
 import { esc } from '../../lib/format.js';
 import { ICON_SEND } from '../../lib/icons.js';
 

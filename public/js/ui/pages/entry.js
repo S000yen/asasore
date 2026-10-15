@@ -3,8 +3,7 @@
 import { drafts, newRoom, state, ui } from '../../core/state.js';
 import { esc } from '../../lib/format.js';
 import { ICON_DOOR, ICON_HAMMER } from '../../lib/icons.js';
-import { timeSliderHtml } from '../components/timeSlider.js';
-import { toastHtml } from '../components/toast.js';
+import { timeSliderHtml, toastHtml } from '../components/parts.js';
 
 export function entryHtml() {
   if (state.endMessage) return endHtml();

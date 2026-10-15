@@ -1,10 +1,9 @@
-// 描画：状態から HTML を作って、変わったところだけを書き換える。段階が変わったときの演出も、ここで始める。
+// 描画：状態から HTML を作って、変わったところだけを書き換える。
+// 段階が変わったときの演出と、遊び方（howto.md）の読み込みも、ここで始める。
 
-import { isEditing } from '../core/selectors.js';
-import { state, ui } from '../core/state.js';
-import { bomb, startBand } from '../effects/banners.js';
-import { confetti } from '../effects/confetti.js';
-import { loadHowto } from '../net/howto.js';
+import { isEditing, state, ui } from '../core/state.js';
+import { bomb, confetti, startBand } from '../effects/overlays.js';
+import { mdToHtml } from '../lib/format.js';
 import { entryHtml } from '../ui/pages/entry.js';
 import { roomHtml } from '../ui/pages/room.js';
 
@@ -79,4 +78,15 @@ export function startComposition() {
 export function endComposition() {
   composing = false;
   setTimeout(() => { if (pendingRender && !composing) { pendingRender = false; render(); } }, 0);
+}
+
+// 遊び方（public/howto.md）：初めて開くときに読み込んで、控えておく。
+let howtoLoading = false;
+
+function loadHowto(onLoaded) {
+  if (state.howtoHtml !== null || howtoLoading) return;
+  howtoLoading = true;
+  fetch('/howto.md').then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then((t) => { state.howtoHtml = mdToHtml(t); })
+    .catch(() => { state.howtoHtml = '<p class="hint">読み込めませんでした。もう一度開いてください。</p>'; howtoLoading = false; setTimeout(() => { state.howtoHtml = null; }, 0); })
+    .finally(() => { howtoLoading = false; onLoaded(); }); // 読み込めたら（失敗しても）、描き直してもらう
 }

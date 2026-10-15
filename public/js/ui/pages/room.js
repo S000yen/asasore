@@ -1,17 +1,12 @@
-// 部屋の中の画面の枠（ヘッダー、フェーズごとの本文、下の操作、シート、ダイアログ）。
+// 部屋の中の画面の枠（ヘッダー、フェーズごとの本文、下の操作、シート、ダイアログ）と、ロビー。
 
-import { isEditing } from '../../core/selectors.js';
-import { state, ui } from '../../core/state.js';
-import { esc } from '../../lib/format.js';
+import { isEditing, state, ui } from '../../core/state.js';
+import { rosterHtml } from '../../effects/roster.js';
+import { esc, escN } from '../../lib/format.js';
+import { ICON_PENCIL } from '../../lib/icons.js';
 import { actionBar } from '../components/actionBar.js';
-import { modalHtml } from '../components/modal.js';
-import { toastHtml } from '../components/toast.js';
-import { answerHtml } from './answer.js';
-import { lobbyHtml } from './lobby.js';
-import { resultHtml } from './result.js';
-import { revealHtml } from './reveal.js';
-import { topicHtml } from './topic.js';
-import { voteHtml } from './vote.js';
+import { modalHtml, toastHtml } from '../components/parts.js';
+import { answerHtml, resultHtml, revealHtml, topicHtml, voteHtml } from './rounds.js';
 import { sheetHtml } from '../sheets/index.js';
 
 export function roomHtml() {
@@ -42,4 +37,13 @@ function phaseHtml() {
     case 'result': return resultHtml();
     default: return '';
   }
+}
+
+function lobbyHtml() {
+  const v = state.view;
+  return `
+    <div class="listhead"><h2>参加者 ${v.players.length}人</h2><div class="lh-actions"><button class="btn small edit-toggle namebtn" data-do="openRename" aria-label="表示名を変える">${ICON_PENCIL}<span class="nm">${escN(v.me.name, 10)}</span></button></div></div>
+    ${rosterHtml()}
+    <button class="btn small center" data-do="share">招待リンクを共有する</button>
+`;
 }
