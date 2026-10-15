@@ -1,386 +1,21 @@
-// 画面の入口：通信、操作、描画の組み立て。
-// HTML を作る部分は ui/、状態は core/、端末への保存は net/、動きは effects/ に分けてある。
+// 画面の入口：操作（クリックや入力）の処理と、起動の組み立て。
+// HTML は ui/、状態は core/、通信は net/、描画は app/render.js、動きは effects/ に分けてある。
 
-import { isEditing } from '../core/selectors.js';
+import { endComposition, fitTheme, render, startComposition } from './render.js';
+import { setRenderer } from '../core/hooks.js';
 import { drafts, newRoom, state, ui } from '../core/state.js';
+import { toast } from '../core/toast.js';
 import { startBounceLoop } from '../effects/bounce.js';
 import { startRosterLoop } from '../effects/roster.js';
 import { startTimerTicker } from '../effects/timerTicker.js';
-import { mdToHtml } from '../lib/markdown.js';
-import { MARKS } from '../lib/marks.js';
-import { clientId, loadName, loadSession, saveName, saveSession } from '../net/storage.js';
+import { act, sendCritical, sendJoin, setMessageHandler, startConnection } from '../net/connection.js';
+import { onMessage } from '../net/messages.js';
+import { clientId, loadName, loadSession, saveName } from '../net/storage.js';
 import { sliderVal, tsLabel } from '../ui/components/timeSlider.js';
-import { entryHtml } from '../ui/pages/entry.js';
-import { roomHtml } from '../ui/pages/room.js';
 
 const $app = document.getElementById('app');
 state.session = loadSession();
 state.prefName = loadName();
-
-let ws = null;
-let backoff = 500;
-let lastJoinCode = null;     // 最後に入ろうとした部屋（見つからなかったとき、どの記録を消すか決めるため）
-
-// 招待リンク（/?code=XXXX）から開いたら、コードも名前も入れずに、そのまま入る
-let pendingLink = (() => {
-  const c = (new URLSearchParams(location.search).get('code') ?? '').trim().toUpperCase();
-  return /^[A-Z0-9]{4}$/.test(c) ? c : null;
-})();
-
-let lastRound = 0, lastTopicKey = '', autoDrawKey = '';
-let composing = false, pendingRender = false, toastTimer = null;
-
-// ---------- 通信 ----------
-
-function connect() {
-  if (ws && ws.readyState <= 1) return;
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
-  ws = sock;
-  sock.onopen = () => {
-    backoff = 500;
-    ui.connected = true;
-    if (resend) { const m = resend; resend = null; sock.send(JSON.stringify(m)); }
-    else if (pendingLink) joinFromLink();
-    else if (state.session && state.autoJoin) sendJoin(state.session.code);
-    render();
-  };
-  sock.onmessage = (e) => {
-    try { onMessage(JSON.parse(e.data)); } catch (err) { console.error(err); }
-  };
-  sock.onclose = () => {
-    if (ws !== sock) return; // つなぎ直しで自分から閉じたものは、無視する
-    ws = null;
-    ui.connected = false;
-    render();
-    setTimeout(connect, backoff);
-    backoff = Math.min(backoff * 2, 5000);
-  };
-}
-
-const sendRaw = (m) => {
-  if (ws && ws.readyState === 1) { ws.send(JSON.stringify(m)); return true; }
-  toast('接続しています。少し待ってから、もう一度お試しください');
-  return false;
-};
-// 入室・作成のように、返事がないと困る操作。つながっているように見えて実は切れていた（スマホで起きやすい）ときは、
-// 少し待って返事がなければ、つなぎ直して一度だけ送り直す。押したのに何も起きない、をなくす。
-let resend = null;
-let awaiting = null;
-function sendCritical(m) {
-  if (!sendRaw(m)) return false;
-  clearTimeout(awaiting?.timer);
-  awaiting = { m, tries: 0, timer: setTimeout(retryCritical, 2500) };
-  return true;
-}
-function settleCritical() { clearTimeout(awaiting?.timer); awaiting = null; resend = null; }
-function retryCritical() {
-  const a = awaiting;
-  if (!a) return;
-  if (a.tries >= 1) { settleCritical(); ui.joining = false; toast('つながりませんでした。もう一度お試しください'); render(); return; }
-  a.tries += 1;
-  resend = a.m;
-  const old = ws;
-  ws = null;
-  ui.connected = false;
-  try { old?.close(); } catch { /* すでに切れている */ }
-  connect();
-  a.timer = setTimeout(retryCritical, 5000);
-}
-const act = (a, extra = {}) => sendRaw({ t: 'act', a, ...extra });
-
-// 同じ端末で前に入った部屋なら、同じ参加者として戻る（playerId を渡す）
-function sendJoin(code, spectator = false) {
-  lastJoinCode = code;
-  return sendCritical({ t: 'join', code, name: state.prefName, clientId, spectator, playerId: state.session?.code === code ? state.session.playerId : null });
-}
-
-function joinFromLink() {
-  const code = pendingLink;
-  pendingLink = null;
-  try { history.replaceState(null, '', location.pathname); } catch { /* 書き換えられなくても動く */ }
-  state.autoJoin = true;
-  ui.joining = true;
-  sendJoin(code);
-}
-
-// スマホはアプリを切り替えると通信が止まる。戻ってきたら接続を確かめ、入り直して最新の状態をもらう。
-function wake() {
-  if (document.hidden) return;
-  if (!ws || ws.readyState > 1) { connect(); return; }
-  if (state.view && state.session) sendJoin(state.session.code);
-}
-document.addEventListener('visibilitychange', wake);
-window.addEventListener('online', wake);
-window.addEventListener('pageshow', wake);
-
-function onMessage(m) {
-  switch (m.t) {
-    case 'hello': { // 開きっぱなしの古い画面は、新しい版が出ていたら、自分で読み込み直す
-      const mine = document.querySelector('meta[name=build]')?.content;
-      if (mine && m.build && mine !== m.build) location.reload();
-      return;
-    }
-    case 'joined':
-      settleCritical();
-      state.session = { code: m.code, playerId: m.playerId };
-      saveSession(state.session);
-      state.endMessage = null;
-      ui.joinOpen = false;
-      return;
-    case 'state':
-      state.view = m.view;
-      state.viewAt = performance.now();
-      ui.joining = false;
-      if (ui.pendingRename !== null && state.view.me.name === ui.pendingRename) { // 表示名の変更が通った
-        state.prefName = ui.pendingRename;
-        saveName(state.prefName);
-        ui.pendingRename = null;
-        if (ui.sheet?.kind === 'rename') ui.sheet = null;
-        toast('表示名を変えました');
-      }
-      syncDrafts();
-      break;
-    case 'notice':
-      toast(m.text);
-      return;
-    case 'react':
-      floatMark(m.kind);
-      return;
-    case 'error':
-      settleCritical();
-      ui.joining = false;
-      ui.pendingRename = null;
-      if (m.code === 'no_room') { // 見つからなかった部屋の記録だけを消す（別の部屋の記録は残す）
-        if (!state.session || state.session.code === lastJoinCode) { state.session = null; saveSession(null); }
-        state.view = null;
-      }
-      if (m.code === 'banned') {
-        state.view = null; state.autoJoin = false;
-        state.endMessage = { title: 'この部屋には入れません', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
-      }
-      toast(m.message);
-      break;
-    case 'needConfirm':
-      ui.modal = confirmFor(m);
-      break;
-    case 'removed':
-      state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
-      state.endMessage = { title: '部屋から外されました', body: '主催者が再入室を許可すると、もう一度入れます。', retry: true };
-      break;
-    case 'closed':
-      state.view = null; state.session = null; saveSession(null); ui.sheet = null; ui.modal = null;
-      state.endMessage = { title: '部屋が閉じられました', body: '' };
-      break;
-    case 'left':
-      state.view = null; state.autoJoin = false; ui.sheet = null; ui.modal = null;
-      break;
-  }
-  render();
-}
-
-// 入力中の内容（下書き）は、状態が届いても消さない。新しいラウンドと、お題が変わったときだけ入れ替える。
-function syncDrafts() {
-  const v = state.view;
-  if (v.round !== lastRound) { lastRound = v.round; drafts.answer = ''; }
-  if (v.phase === 'answer' && v.myAnswer !== null && drafts.answer === '') drafts.answer = v.myAnswer;
-  if (v.phase === 'topic' && v.me.isPresenter) {
-    const key = `${v.round}:${v.presenterId}:${JSON.stringify(v.topic)}`;
-    if (key !== lastTopicKey) {
-      lastTopicKey = key;
-      drafts.hiragana = v.topic?.hiragana ?? '';
-      drafts.theme = v.topic?.theme ?? '';
-    }
-    const dk = `${v.round}:${v.presenterId}`;
-    if (!v.topic && autoDrawKey !== dk) { // 出題者になったら、まず全部ランダムで出しておく
-      autoDrawKey = dk;
-      act('drawTopic', { part: 'both' });
-    }
-  }
-}
-
-function toast(text) {
-  ui.toast = text;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { ui.toast = null; render(); }, 3500);
-  render();
-}
-
-function confirmFor(m) {
-  const p = m.pending;
-  let body;
-  if (m.phase === 'answer') body = `まだ${p.count}人が未回答です（${p.names.join('、')}）。このまま進みますか？`;
-  else if (m.phase === 'reveal') body = `まだ開示されていない回答が${p.count}件あります。このまま投票に進みますか？`;
-  else if (state.view.settings.chooserMode === 'one') body = `まだ正解が選ばれていません（${p.names.join('、')}）。このまま結果を出しますか？`;
-  else body = `まだ${p.count}人が未投票です（${p.names.join('、')}）。このまま結果を出しますか？`;
-  return { body, ok: '進める', onOk: () => act('advance', { force: true }) };
-}
-
-let lastPhaseKey = '';
-// ---------- 描画 ----------
-
-function trackPhase() {
-  const phase = state.view?.phase ?? '';
-  document.body.dataset.phase = phase;
-  const key = state.view ? `${state.view.code}:${state.view.round}:${phase}` : '';
-  if (key !== lastPhaseKey) {
-    ui.sel.clear(); // 段階が変わったら、編集と選択は解く
-    ui.editing = false;
-    if (state.view?.bombed && (phase === 'reveal' || phase === 'result') && lastPhaseKey.endsWith(':answer')) bomb();
-    if (phase === 'vote' && lastPhaseKey.endsWith(':reveal')) startBand();
-    if (phase === 'result' && lastPhaseKey.endsWith(':vote') && state.view.result?.winners.length) confetti();
-    lastPhaseKey = key;
-  }
-  if (!isEditing()) { ui.editing = false; ui.sel.clear(); }
-  if (state.view && ui.sel.size) { // 消えた・まだ開示されていない回答は、選択から外す
-    const ok = new Set(state.view.pool.filter((c) => c.revealed).map((c) => c.answerId));
-    for (const id of [...ui.sel]) if (!ok.has(id)) ui.sel.delete(id);
-  }
-}
-// 結果の発表：画面の下の左右から、クラッカーのように紙吹雪が飛び出す。#app の外の canvas に描く（描画のたびに消されないように）。
-function confetti() {
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  document.querySelector('.confetti')?.remove();
-  const cv = document.createElement('canvas');
-  cv.className = 'confetti';
-  cv.setAttribute('aria-hidden', 'true');
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const W = window.innerWidth, H = window.innerHeight;
-  cv.width = W * dpr; cv.height = H * dpr;
-  document.body.append(cv);
-  const g = cv.getContext('2d');
-  g.scale(dpr, dpr);
-  const colors = ['#ffd83d', '#d93a2b', '#16213a', '#ffffff', '#ff8a3d', '#4aa8d8'];
-  const parts = [];
-  const shoot = (fromLeft, delay) => {
-    for (let i = 0; i < 70; i++) {
-      const spread = (Math.random() - 0.5) * 0.7; // 扇のように広がる
-      const ang = (fromLeft ? -Math.PI * 0.36 : -Math.PI * 0.64) + spread;
-      const sp = (0.55 + Math.random() * 0.6) * Math.min(1500, H * 1.55);
-      parts.push({
-        x: fromLeft ? W * 0.06 : W * 0.94, y: H + 8, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
-        w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 18,
-        c: colors[(Math.random() * colors.length) | 0], round: Math.random() < 0.25, life: 2.2 + Math.random() * 1.2, age: -delay,
-      });
-    }
-  };
-  shoot(true, 0); shoot(false, 0); shoot(true, 0.28); shoot(false, 0.28);
-  let last = performance.now();
-  const step = (now) => {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    g.clearRect(0, 0, W, H);
-    let alive = 0;
-    for (const p of parts) {
-      p.age += dt;
-      if (p.age < 0) { alive += 1; continue; }
-      if (p.age > p.life) continue;
-      alive += 1;
-      p.vx *= Math.pow(0.12, dt); p.vy = p.vy * Math.pow(0.12, dt) + 820 * dt; // 空気の抵抗と重力
-      p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-      g.globalAlpha = Math.min(1, (p.life - p.age) / (p.life * 0.3));
-      g.fillStyle = p.c;
-      g.save(); g.translate(p.x, p.y); g.rotate(p.rot);
-      if (p.round) { g.beginPath(); g.arc(0, 0, p.h, 0, 6.28); g.fill(); }
-      else g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.rot * 1.7) * 0.8 + 0.2));
-      g.restore();
-    }
-    if (alive) requestAnimationFrame(step); else cv.remove();
-  };
-  requestAnimationFrame(step);
-}
-
-// 反応マーク：画面の下から、ふわっと浮かび上がる。#app の外に出す（描画のたびに消えないように）。
-function floatMark(kind) {
-  const mark = MARKS[kind];
-  if (!mark) return;
-  let box = document.querySelector('.floaters');
-  if (!box) { box = document.createElement('div'); box.className = 'floaters'; box.setAttribute('aria-hidden', 'true'); document.body.append(box); }
-  if (box.childElementCount > 60) box.firstElementChild.remove();
-  const el = document.createElement('span');
-  el.className = 'float';
-  el.textContent = mark;
-  el.style.left = `${8 + Math.random() * 84}%`;
-  el.style.setProperty('--sway', `${Math.round((Math.random() - 0.5) * 80)}px`);
-  el.style.setProperty('--rise', `${55 + Math.round(Math.random() * 25)}vh`);
-  el.style.fontSize = `${28 + Math.round(Math.random() * 14)}px`;
-  el.addEventListener('animationend', () => el.remove());
-  box.append(el);
-}
-
-// 投票のはじまりで、背景を紺に反転し、「投票スタート」の帯を一瞬出す。帯は #app の外に置く（描画のたびに作り直されて、動きが途切れないように）。
-function startBand() {
-  document.querySelector('.startband')?.remove();
-  const el = document.createElement('div');
-  el.className = 'startband';
-  el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = `<span>${state.view.settings.chooserMode === 'one' ? '正解を選べ' : '投票スタート'}</span>`;
-  document.body.append(el);
-  setTimeout(() => el.remove(), 1700);
-}
-
-// 時間切れで、未回答の人がいたまま進んだとき：爆弾が爆発する
-function bomb() {
-  document.querySelector('.bomb')?.remove();
-  const el = document.createElement('div');
-  el.className = 'bomb';
-  el.setAttribute('aria-hidden', 'true');
-  el.innerHTML = '<div class="flash"></div><div class="boom">💥</div><div class="boomtext">時間切れ！</div>';
-  document.body.append(el);
-  document.body.classList.add('shake');
-  setTimeout(() => document.body.classList.remove('shake'), 700);
-  setTimeout(() => el.remove(), 2100);
-}
-
-function render() {
-  if (composing) { pendingRender = true; return; } // 日本語入力の変換中は作り直さない
-  trackPhase();
-  if (state.view && ui.sheet?.kind === 'howto') loadHowto(); // 遊び方は、初めて開くときに読み込む
-  morphInto($app, state.view ? roomHtml() : entryHtml());
-  fitTheme();
-}
-
-// 画面の更新は、全部を作り直さず、変わったところだけを書き換える。
-// スクロール位置、入力中の欄（キーボード）、動いている演出が、他の人の操作で途切れないように。
-function morphInto(root, html) {
-  const next = document.createElement('div');
-  next.innerHTML = html;
-  syncChildren(root, next);
-}
-function syncChildren(parent, fresh) {
-  const want = fresh.childNodes;
-  for (let i = 0; i < want.length; i++) {
-    const n = want[i], o = parent.childNodes[i];
-    if (!o) { parent.appendChild(n.cloneNode(true)); continue; }
-    if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName) { parent.replaceChild(n.cloneNode(true), o); continue; }
-    if (n.nodeType !== 1) { if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; continue; }
-    for (const a of [...o.attributes]) if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
-    for (const a of n.attributes) if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
-    if (o.nodeName === 'TEXTAREA' || o.nodeName === 'INPUT') {
-      if (o !== document.activeElement && o.value !== n.value) o.value = n.value; // 入力中の欄の中身は、触らない
-      continue;
-    }
-    syncChildren(o, n);
-  }
-  while (parent.childNodes.length > want.length) parent.removeChild(parent.lastChild);
-}
-
-// 題材の欄は、長くても全部見えるよう、文字の量に合わせて高さを変える
-function fitTheme() {
-  const el = document.getElementById('themeInput');
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = `${el.scrollHeight + 4}px`;
-}
-
-// 遊び方（public/howto.md）：初めて開くときに読み込んで、控えておく。
-let howtoLoading = false;
-
-function loadHowto() {
-  if (state.howtoHtml !== null || howtoLoading) return;
-  howtoLoading = true;
-  fetch('/howto.md').then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then((t) => { state.howtoHtml = mdToHtml(t); })
-    .catch(() => { state.howtoHtml = '<p class="hint">読み込めませんでした。もう一度開いてください。</p>'; howtoLoading = false; setTimeout(() => { state.howtoHtml = null; }, 0); })
-    .finally(() => { howtoLoading = false; if (ui.sheet?.kind === 'howto') render(); });
-}
 
 // ---------- 操作 ----------
 
@@ -577,6 +212,8 @@ const handlers = {
   },
 };
 
+let lastJoinCode = null;     // 最後に入ろうとした部屋（見つからなかったとき、どの記録を消すか決めるため）
+
 $app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-do]');
   if (!el || el.disabled) return;
@@ -630,14 +267,12 @@ $app.addEventListener('focusin', (e) => {
 });
 $app.addEventListener('mouseup', (e) => { if (justFocused && (e.target.id === 'hiraInput' || e.target.id === 'themeInput')) e.preventDefault(); }); // 離した瞬間に選択が解けるのを防ぐ
 
-$app.addEventListener('compositionstart', () => { composing = true; });
-$app.addEventListener('compositionend', () => {
-  composing = false;
-  setTimeout(() => { if (pendingRender && !composing) { pendingRender = false; render(); } }, 0);
-});
-
+$app.addEventListener('compositionstart', () => { startComposition(); });
+$app.addEventListener('compositionend', () => { endComposition(); });
+setRenderer(render);
+setMessageHandler(onMessage);
 startRosterLoop();
 startBounceLoop();
 startTimerTicker();
 render();
-connect();
+startConnection();

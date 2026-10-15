@@ -8,6 +8,7 @@ const initialState = () => ({
   prefName: '', // 自分で決めた表示名。空ならサーバーが「ユーザーN」を付ける
   autoJoin: true,
   endMessage: null, // 入室画面の代わりに出す案内（外された、部屋が閉じた、など）
+  lastJoinCode: null, // 最後に入ろうとした部屋（見つからなかったとき、どの記録を消すか決めるため）
   howtoHtml: null, // 遊び方（読み込んだら、HTML にして控えておく）
 });
 const initialUi = () => ({ joinWatch: false, editing: false, sel: new Set(), createOpen: false, sheet: null, modal: null, toast: null, connected: false, joinOpen: false, joining: false, pendingRename: null });
