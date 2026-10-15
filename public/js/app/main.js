@@ -10,7 +10,7 @@ import { startRosterLoop } from '../effects/roster.js';
 import { setMessageHandler, startConnection } from '../net/connection.js';
 import { onMessage } from '../net/messages.js';
 import { loadName, loadSession } from '../net/storage.js';
-import { sliderVal, tsLabel } from '../ui/components/parts.js';
+import { keyJump, sliderVal, snapPos, tsLabel } from '../ui/components/parts.js';
 
 const $app = document.getElementById('app');
 state.session = loadSession();
@@ -36,18 +36,35 @@ $app.addEventListener('input', (e) => {
   }
 });
 
-// 制限時間のバー：動かしている間は表示だけ変えて、指を離したときに確定する
-$app.addEventListener('input', (e) => {
-  const el = e.target;
-  if (!el.dataset?.slider) return;
+// 制限時間のバー：動かしている間は表示だけ変えて、指を離したときに確定する。
+// 180秒と「なし」の間には止まらない（近いほうへ吸い付く）。
+const showSlider = (el) => {
   const v = sliderVal(el);
   const box = el.closest('.tslider');
   box.querySelector('.tval').textContent = tsLabel(v);
   box.querySelectorAll('.tick').forEach((t) => t.classList.toggle('on', Number(t.dataset.val) === v));
+};
+$app.addEventListener('input', (e) => {
+  const el = e.target;
+  if (!el.dataset?.slider) return;
+  const pos = snapPos(el.value);
+  if (Number(el.value) !== pos) el.value = String(pos);
+  showSlider(el);
 });
 $app.addEventListener('change', (e) => {
   const el = e.target;
   if (!el.dataset?.slider) return;
+  el.value = String(snapPos(el.value));
+  handlers.setTime({ ctx: el.dataset.slider, val: String(sliderVal(el)) });
+});
+$app.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (!el.dataset?.slider || el.disabled) return;
+  const to = keyJump(el.value, e.key);
+  if (to === null) return;
+  e.preventDefault();
+  el.value = String(to);
+  showSlider(el);
   handlers.setTime({ ctx: el.dataset.slider, val: String(sliderVal(el)) });
 });
 

@@ -47,6 +47,21 @@ export function timeSliderHtml(value, ctx, disabled = false) {
 // つまみの値。いちばん右の「なし」は、制限時間 0 に戻す。
 export const sliderVal = (el) => { const n = Number(el.value); return n > TS_MAX ? 0 : n; };
 
+// つまみの位置を、止まれる位置に寄せる。180秒と「なし」の間（目盛りを離すために空けた所）は、近いほうへ吸い付く。
+export const snapPos = (pos) => {
+  const n = Number(pos);
+  if (n <= TS_MAX) return n;
+  return n - TS_MAX < (TS_NONE - TS_MAX) / 2 ? TS_MAX : TS_NONE;
+};
+
+// 矢印キーで、180秒と「なし」の間を1回で跳ぶ（寄せるだけだと、180秒から右へ進めなくなる）。跳ばないときは null（ふつうに動かす）。
+export const keyJump = (pos, key) => {
+  const n = Number(pos);
+  if (n === TS_MAX && (key === 'ArrowRight' || key === 'ArrowUp')) return TS_NONE;
+  if (n === TS_NONE && (key === 'ArrowLeft' || key === 'ArrowDown')) return TS_MAX;
+  return null;
+};
+
 export function reactBarHtml() {
   const lock = isEditing();
   return `<div class="reactbar">${Object.entries(MARKS).map(([k, m]) => `<button class="react" ${lock ? 'disabled' : `data-do="react" data-kind="${k}"`} aria-label="${{ like: 'いいね', bad: 'バッド', cheer: '応援', laugh: '笑い' }[k]}">${m}</button>`).join('')}</div>`;
