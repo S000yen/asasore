@@ -42,7 +42,7 @@ export async function handleAdmin(req, res, url, ctx, token = process.env.ADMIN_
     const body = await readBody(req);
     if (url.pathname === '/admin/api/status') {
       let players = 0;
-      for (const { room } of ctx.rooms.values()) players += [...room.players.values()].filter((p) => !p.removed && p.connected).length;
+      for (const { room } of ctx.rooms.values()) players += room.connectedCount();
       json(res, 200, {
         build: ctx.build,
         uptimeSec: Math.round((Date.now() - ctx.startedAt) / 1000),

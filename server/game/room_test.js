@@ -846,3 +846,36 @@ test('表示名は200文字まで。同名のときは、末尾に番号が付�
   assert.equal(nb.length, 200);
   assert.ok(nb.endsWith('2'));
 });
+
+test('退出：主催者は、ほかに接続中の人がいるうちは、先に譲渡が必要', () => {
+  const { room, ids } = setup(3);
+  const [host, B, C] = ids;
+  assert.throws(() => room.leave(host), (e) => e.code === 'transfer_first');
+  assert.equal(room.players.get(host).connected, true); // 失敗したら、何も変わらない
+  room.leave(B); // 一般参加者は、そのまま退出できる
+  assert.equal(room.players.get(B).connected, false);
+  room.disconnect(C);
+  room.leave(host); // 接続中の人が、ほかにいなければ、主催者も退出できる
+  assert.equal(room.players.get(host).connected, false);
+});
+
+test('退出：譲渡したあとの元主催者は、退出できる', () => {
+  const { room, ids } = setup(3);
+  const [host, B] = ids;
+  room.transferHost(host, B);
+  room.leave(host);
+  assert.equal(room.players.get(host).connected, false);
+  assert.throws(() => room.leave(B), (e) => e.code === 'transfer_first'); // 新しい主催者には、同じ決まり
+});
+
+test('接続中の人数と、表示名の引き方', () => {
+  const { room, ids } = setup(3);
+  const [host, B, C] = ids;
+  assert.equal(room.connectedCount(), 3);
+  room.disconnect(B);
+  assert.equal(room.connectedCount(), 2);
+  room.removePlayer(host, C); // 削除された人は、数えない
+  assert.equal(room.connectedCount(), 1);
+  assert.equal(room.playerName(C), 'C'); // 名前は、削除された人も引ける
+  assert.equal(room.playerName('nobody'), undefined);
+});
